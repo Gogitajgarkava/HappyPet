@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "HappyPet.Domain": {
+      "commandName": "Project",
+      "workingDirectory": "D:\\HappyPet\\src\\HappyPet.WebAPI"
+    },
+    "Profile 1": {
+      "commandName": "Executable",
+      "executablePath": "D:\\HappyPet\\src\\HappyPet.WebAPI\\Properties\\launchSettings.json"
+    }
+  }
+}

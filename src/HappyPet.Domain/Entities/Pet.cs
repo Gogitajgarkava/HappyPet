@@ -1,0 +1,25 @@
+﻿using HappyPet.Domain.Common;
+using HappyPet.Domain.Enums;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace HappyPet.Domain.Entities
+{
+    public class Pet : BaseEntity
+    {
+        public Guid OwnerId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public PetSpecies Species { get; set; }
+        public string? Breed { get; set; }
+        public string MicrochipNumber { get; set; } = string.Empty;
+        public DateTime? BirthDate { get; set; }
+        public PetGender Gender { get; set; }
+        public string? Color { get; set; }
+        public string? DistinguishingMarks { get; set; }
+        public bool IsLost { get; set; } = false;
+        public User Owner { get; set; } = null!;
+    }
+}
