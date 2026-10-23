@@ -47,9 +47,11 @@ namespace HappyPet.Application.Services
                 Password = _passwordHasher.HashPassword(request.Password),
                 PhoneNumber = request.PhoneNumber,
                 Address = request.Address,
-                Role = UserRole.PetOwner,
+                Role = UserRole.User,
                 IsVerified = false,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                BirthDate = request.BirthDate
+               
             };
             await _userRepository.AddAsync(newUser, cancellationToken);
             await _unitOfWork.SaveChangesAsync();
@@ -57,6 +59,48 @@ namespace HappyPet.Application.Services
             return MapToResponse(newUser);
         }
 
+        
+
+        public async Task<UserResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            var user = await _userRepository.GetByIdAsync(id, cancellationToken);
+            return user == null ? null : MapToResponse(user);
+        }
+
+        public async Task<UserResponse?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
+        {
+            var user = await _userRepository.GetByEmailAsync(email, cancellationToken);
+            return user ==null ? null : MapToResponse(user);
+        }
+
+        public async Task<UserResponse> UpdateAsync(Guid id, UpdateUserRequest request, CancellationToken cancellationToken)
+        {
+            var user = await _userRepository.GetByIdAsync(id, cancellationToken);
+            if (user == null)
+            {
+                throw new InvalidOperationException("მომხმარებელი არ მოიძებნა.");
+            }
+
+            user.FirstName = request.FirstName;
+            user.LastName = request.LastName;
+            user.PhoneNumber = request.PhoneNumber;
+            user.Address = request.Address;
+
+            await _unitOfWork.SaveChangesAsync();
+
+            return MapToResponse(user);
+        }
+
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+           var user = _userRepository.GetByIdAsync(id, cancellationToken).Result;
+            if (user == null)
+            {
+                throw new InvalidOperationException("მომხმარებელი არ მოიძებნა.");
+            }
+            _userRepository.Delete(user);
+            return _unitOfWork.SaveChangesAsync();
+        }
         private static UserResponse MapToResponse(User user)
         {
             return new UserResponse
@@ -74,10 +118,7 @@ namespace HappyPet.Application.Services
             };
         }
 
-        public async Task<UserResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-        {
-            var user = await _userRepository.GetByIdAsync(id, cancellationToken);
-            return user == null ? null : MapToResponse(user);
-        }
+
+
     }
 }

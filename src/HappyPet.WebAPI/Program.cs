@@ -7,6 +7,7 @@ using HappyPet.Application.Services;
 using HappyPet.Infrastructure.Persistence;
 using HappyPet.Infrastructure.Persistence.Repositories;
 using HappyPet.Infrastructure.Security;
+using HappyPet.Infrastructure.Securuty;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,6 +25,9 @@ builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserServices, UserServices>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ITokenGenerator, TokenGenerator>();
+
 
 var app = builder.Build();
 

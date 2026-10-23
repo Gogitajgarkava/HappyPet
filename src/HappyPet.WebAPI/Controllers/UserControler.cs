@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HappyPet.WebAPI.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/v1/user")]
     [ApiController]
     public class UserControler : ControllerBase
     {
@@ -45,6 +45,46 @@ namespace HappyPet.WebAPI.Controllers
             }
 
             return Ok(user);
+        }
+
+        [HttpGet("{email}")]
+        public async Task<IActionResult> GetUserByEmail(string email, CancellationToken cancellationToken)
+        {
+            var user = await _userService.GetByEmailAsync(email, cancellationToken);
+            if (user == null)
+            {
+                return NotFound(new { message = "მომხმარებელი ვერ მოიძებნა." });
+            }
+
+            return Ok(user);
+        }
+
+        [HttpPut("{id:guid}")]
+        public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserRequest request, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var result = await _userService.UpdateAsync(id, request, cancellationToken);
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> DeleteUser(Guid id, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _userService.DeleteAsync(id, cancellationToken);
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }
