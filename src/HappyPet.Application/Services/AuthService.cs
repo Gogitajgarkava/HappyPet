@@ -29,7 +29,8 @@ namespace HappyPet.Application.Services
 
         public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
         {
-            var user = await _userRepository.GetByEmailAsync(request.Email, cancellationToken);
+            var email = request.Email.Trim().ToLowerInvariant();
+            var user = await _userRepository.GetByEmailAsync(email, cancellationToken);
             if (user == null)
             {
                 throw new UnauthorizedAccessException("არასწორი ელ-ფოსტა ან პაროლი.");

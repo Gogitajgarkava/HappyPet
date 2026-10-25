@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using HappyPet.Application.Interfaces.Security;
 
@@ -26,13 +27,22 @@ namespace HappyPet.Application.Services
             _passwordHasher = passwordHasher;
             _unitOfWork = unitOfWork;
         }
+
         public async Task<UserResponse> RegisterAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
         {
-            if (await _userRepository.ExistsByEmailAsync(request.Email, cancellationToken)) 
+            var email = request.Email.Trim().ToLowerInvariant();
+            var personalId = request.PersonalId.Trim();
+
+            if (request.BirthDate == default)
+            {
+                throw new InvalidOperationException("დაბადების თარიღი სავალდებულოა.");
+            }
+
+            if (await _userRepository.ExistsByEmailAsync(email, cancellationToken))
             {
                 throw new InvalidOperationException("მითითებული ელ-ფოსტით მომხმარებელი უკვე რეგისტრირებულია.");
             }
-            if (await _userRepository.ExistsByPersonalIdAsync(request.PersonalId, cancellationToken)) 
+            if (await _userRepository.ExistsByPersonalIdAsync(personalId, cancellationToken))
             {
                 throw new InvalidOperationException("მითითებული პირადი ნომრით მომხმარებელი უკვე რეგისტრირებულია.");
             }
@@ -40,26 +50,24 @@ namespace HappyPet.Application.Services
             var newUser = new User
             {
                 Id = Guid.NewGuid(),
-                PersonalId = request.PersonalId,
-                FirstName = request.FirstName,
-                LastName = request.LastName,
-                Email = request.Email,
+                PersonalId = personalId,
+                FirstName = request.FirstName.Trim(),
+                LastName = request.LastName.Trim(),
+                Email = email,
                 Password = _passwordHasher.HashPassword(request.Password),
-                PhoneNumber = request.PhoneNumber,
-                Address = request.Address,
+                PhoneNumber = request.PhoneNumber.Trim(),
+                Address = request.Address?.Trim(),
                 Role = UserRole.User,
                 IsVerified = false,
                 CreatedAt = DateTime.UtcNow,
-                BirthDate = request.BirthDate
-               
+                BirthDate = ToUtc(request.BirthDate)
             };
+
             await _userRepository.AddAsync(newUser, cancellationToken);
             await _unitOfWork.SaveChangesAsync();
 
             return MapToResponse(newUser);
         }
-
-        
 
         public async Task<UserResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
@@ -69,8 +77,8 @@ namespace HappyPet.Application.Services
 
         public async Task<UserResponse?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
         {
-            var user = await _userRepository.GetByEmailAsync(email, cancellationToken);
-            return user ==null ? null : MapToResponse(user);
+            var user = await _userRepository.GetByEmailAsync(email.Trim().ToLowerInvariant(), cancellationToken);
+            return user == null ? null : MapToResponse(user);
         }
 
         public async Task<UserResponse> UpdateAsync(Guid id, UpdateUserRequest request, CancellationToken cancellationToken)
@@ -78,29 +86,39 @@ namespace HappyPet.Application.Services
             var user = await _userRepository.GetByIdAsync(id, cancellationToken);
             if (user == null)
             {
-                throw new InvalidOperationException("მომხმარებელი არ მოიძებნა.");
+                throw new KeyNotFoundException("მომხმარებელი არ მოიძებნა.");
             }
 
-            user.FirstName = request.FirstName;
-            user.LastName = request.LastName;
-            user.PhoneNumber = request.PhoneNumber;
-            user.Address = request.Address;
+            user.FirstName = request.FirstName.Trim();
+            user.LastName = request.LastName.Trim();
+            user.PhoneNumber = request.PhoneNumber.Trim();
+            user.Address = request.Address?.Trim();
+            user.UpdatedAt = DateTime.UtcNow;
 
             await _unitOfWork.SaveChangesAsync();
 
             return MapToResponse(user);
         }
 
-        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
         {
-           var user = _userRepository.GetByIdAsync(id, cancellationToken).Result;
+            var user = await _userRepository.GetByIdAsync(id, cancellationToken);
             if (user == null)
             {
-                throw new InvalidOperationException("მომხმარებელი არ მოიძებნა.");
+                throw new KeyNotFoundException("მომხმარებელი არ მოიძებნა.");
             }
+
             _userRepository.Delete(user);
-            return _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
         }
+
+        private static DateTime ToUtc(DateTime value)
+        {
+            return value.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(value, DateTimeKind.Utc)
+                : value.ToUniversalTime();
+        }
+
         private static UserResponse MapToResponse(User user)
         {
             return new UserResponse
@@ -109,16 +127,15 @@ namespace HappyPet.Application.Services
                 PersonalId = user.PersonalId,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
+                BirthDate = user.BirthDate,
                 Email = user.Email,
                 PhoneNumber = user.PhoneNumber,
                 Role = user.Role,
                 IsVerified = user.IsVerified,
                 Address = user.Address,
-                CreatedAt = DateTime.Now
+                ProfileImageUrl = null,
+                CreatedAt = user.CreatedAt
             };
         }
-
-
-
     }
 }

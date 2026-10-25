@@ -39,8 +39,9 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
 
         public async Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
         {
+            var normalized = email.Trim().ToLowerInvariant();
             return await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == normalized, cancellationToken);
         }
 
         public async Task<User?> GetByPersonalIdAsync(string personalId, CancellationToken cancellationToken = default)
@@ -58,8 +59,9 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
 
         public async Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken = default)
         {
+            var normalized = email.Trim().ToLowerInvariant();
             return await _context.Users
-                .AnyAsync(u => u.Email == email, cancellationToken);
+                .AnyAsync(u => u.Email.ToLower() == normalized, cancellationToken);
         }
 
         public async Task<bool> ExistsByPersonalIdAsync(string personalId, CancellationToken cancellationToken = default)

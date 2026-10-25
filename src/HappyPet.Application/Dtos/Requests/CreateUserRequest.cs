@@ -6,6 +6,7 @@ namespace HappyPet.Application.Dtos.Requests
     {
         [Required(ErrorMessage = "პირადი ნომერი სავალდებულოა.")]
         [StringLength(11, MinimumLength = 11, ErrorMessage = "პირადი ნომერი უნდა შედგებოდეს ზუსტად 11 ციფრისგან.")]
+        [RegularExpression(@"^\d{11}$", ErrorMessage = "პირადი ნომერი უნდა შედგებოდეს ზუსტად 11 ციფრისგან.")]
         public string PersonalId { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "სახელი სავალდებულოა.")]
