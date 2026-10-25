@@ -42,14 +42,22 @@ Dependency direction: `Domain <- Application <- Infrastructure <- WebAPI`.
    docker compose up -d
    ```
 
-2. Restore tools and apply migrations:
+2. Create the local configuration file from the example and set your own database password and JWT secret:
+
+   ```bash
+   cp appsettings.example.json src/HappyPet.WebAPI/appsettings.json
+   ```
+
+   > `appsettings.json` is git-ignored on purpose. Never commit real credentials.
+
+3. Restore tools and apply migrations:
 
    ```bash
    dotnet tool restore
    dotnet ef database update -p src/HappyPet.Infrastructure -s src/HappyPet.WebAPI
    ```
 
-3. Run the API:
+4. Run the API:
 
    ```bash
    dotnet run --project src/HappyPet.WebAPI --launch-profile https
@@ -95,7 +103,7 @@ dotnet ef migrations remove -p src/HappyPet.Infrastructure -s src/HappyPet.WebAP
 ## Notes
 
 - Connection string: `src/HappyPet.WebAPI/appsettings.json` (`ConnectionStrings:DefaultConnection`, port `5433`).
-- `appsettings.json` is git-ignored; create it locally using the values from the project setup guide.
+- `appsettings.json` is git-ignored; create it by copying `appsettings.example.json` and filling in your own password and JWT secret.
 - JWT settings live under `Jwt` (`Secret`, `Issuer`, `Audience`); tokens are valid for 7 days.
 - Enums are serialized as strings (e.g. `"role": "User"`, `"species": "Dog"`).
 - For the frontend integration details see `docs/HappyPet-Frontend-Integration-Guide.docx`.
