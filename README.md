@@ -12,6 +12,7 @@ src/
     Common/BaseEntity.cs
     Entities/User.cs
     Entities/Pet.cs
+    Entities/PetPhoto.cs
     Enums/Enums.cs
   HappyPet.Application/     # Use cases, interfaces, DTOs, validation
     Dtos/Requests/
@@ -20,11 +21,12 @@ src/
     Services/AuthService.cs
     Services/UserServices.cs
     Services/PetService.cs
-  HappyPet.Infrastructure/  # EF Core, PostgreSQL, security, repositories
+  HappyPet.Infrastructure/  # EF Core, PostgreSQL, security, S3 storage, repositories
     Persistence/HappyPetDbContext.cs
     Persistence/Repositories/
     Securuty/PasswordHasher.cs
     Securuty/TokenGenerator.cs
+    Storage/S3FileStorageService.cs
   HappyPet.WebAPI/           # ASP.NET Core Web API (composition root)
     Controllers/AuthController.cs
     Controllers/UserControler.cs
@@ -84,14 +86,38 @@ All endpoints are under `/api/v1`. Registration and login are public; every othe
 | GET | `/api/v1/pet/lost` | List lost pets |
 | PUT | `/api/v1/pet/{id}` | Update pet (owner or admin) |
 | DELETE | `/api/v1/pet/{id}` | Delete pet (owner or admin) |
+| GET | `/api/v1/pet/{id}/photos` | List pet photos (owner or admin) |
+| POST | `/api/v1/pet/{id}/photos` | Upload a pet photo, `multipart/form-data`, max 5 MB (owner or admin) |
+| PUT | `/api/v1/pet/{id}/photos/{photoId}/primary` | Set the primary pet photo (owner or admin) |
+| DELETE | `/api/v1/pet/{id}/photos/{photoId}` | Delete a pet photo (owner or admin) |
 
 CORS is enabled for `http://localhost:3000` and `http://localhost:5173` by default. Override with `Cors:AllowedOrigins` in configuration.
+
+## Photo storage (AWS S3)
+
+Pet photos are uploaded to S3. The database stores only the object key and metadata, not the binary content.
+
+Configuration (`Aws:S3`):
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `BucketName` | yes | Existing S3 bucket for pet photos |
+| `Region` | yes | AWS region, e.g. `eu-central-1` |
+| `PublicBaseUrl` | recommended | CloudFront or custom domain used to build public photo URLs |
+| `ServiceUrl` | no | S3-compatible endpoint for local development (MinIO, LocalStack, S3Mock) |
+| `AccessKeyId` / `SecretAccessKey` | no | Local development only; production should use the default AWS credential chain |
+
+- Credentials are resolved through the standard AWS chain (environment variables, profile, IAM role) unless explicit local keys are configured.
+- The bucket must already exist. The API does not create it.
+- Recommended production setup: private bucket + CloudFront with OAC. If `PublicBaseUrl` is empty, the API falls back to the public S3 URL, which only works when the bucket policy allows public reads.
+- Allowed files: JPEG, PNG, WebP; maximum 5 MB; maximum 10 photos per pet.
+- Never commit real AWS keys. `appsettings.json` is git-ignored.
 
 ## EF Core commands
 
 ```bash
 # Add a migration
-dotnet ef migrations add <MigrationName> -p src/HappyPet.Infrastructure -s src/HappyPet.WebAPI -o Persistence/Migrations
+dotnet ef migrations add <MigrationName> -p src/HappyPet.Infrastructure -s src/HappyPet.WebAPI -o Migrations
 
 # Apply migrations
 dotnet ef database update -p src/HappyPet.Infrastructure -s src/HappyPet.WebAPI

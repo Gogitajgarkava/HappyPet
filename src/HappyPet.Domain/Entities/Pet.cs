@@ -21,5 +21,6 @@ namespace HappyPet.Domain.Entities
         public string? DistinguishingMarks { get; set; }
         public bool IsLost { get; set; } = false;
         public User Owner { get; set; } = null!;
+        public ICollection<PetPhoto> Photos { get; set; } = new List<PetPhoto>();
     }
 }

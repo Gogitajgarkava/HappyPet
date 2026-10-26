@@ -79,6 +79,44 @@ namespace HappyPet.Infrastructure.Migrations
                     b.ToTable("Pets");
                 });
 
+            modelBuilder.Entity("HappyPet.Domain.Entities.PetPhoto", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("PetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PetId");
+
+                    b.ToTable("PetPhotos");
+                });
+
             modelBuilder.Entity("HappyPet.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -152,6 +190,22 @@ namespace HappyPet.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("HappyPet.Domain.Entities.PetPhoto", b =>
+                {
+                    b.HasOne("HappyPet.Domain.Entities.Pet", "Pet")
+                        .WithMany("Photos")
+                        .HasForeignKey("PetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Pet");
+                });
+
+            modelBuilder.Entity("HappyPet.Domain.Entities.Pet", b =>
+                {
+                    b.Navigation("Photos");
                 });
 
             modelBuilder.Entity("HappyPet.Domain.Entities.User", b =>

@@ -8,6 +8,7 @@ namespace HappyPet.Infrastructure.Persistence
         public HappyPetDbContext(DbContextOptions<HappyPetDbContext> options) : base(options) { }
                public DbSet<User> Users => Set<User>();
         public DbSet<Pet> Pets => Set<Pet>();
+        public DbSet<PetPhoto> PetPhotos => Set<PetPhoto>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -37,6 +38,19 @@ namespace HappyPet.Infrastructure.Persistence
                 entity.HasOne(p => p.Owner)
                       .WithMany(u => u.Pets)
                       .HasForeignKey(p => p.OwnerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<PetPhoto>(entity =>
+            {
+                entity.HasKey(p => p.Id);
+                entity.HasIndex(p => p.PetId);
+                entity.Property(p => p.Key).IsRequired().HasMaxLength(500);
+                entity.Property(p => p.ContentType).IsRequired().HasMaxLength(100);
+
+                entity.HasOne(p => p.Pet)
+                      .WithMany(p => p.Photos)
+                      .HasForeignKey(p => p.PetId)
                       .OnDelete(DeleteBehavior.Cascade);
             });
         }

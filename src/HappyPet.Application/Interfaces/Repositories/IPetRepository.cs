@@ -13,5 +13,11 @@ namespace HappyPet.Application.Interfaces.Repositories
         Task AddAsync(Pet pet, CancellationToken cancellationToken = default);
         void Update(Pet pet);
         void Delete(Pet pet);
+
+        Task<PetPhoto?> GetPhotoByIdAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<List<PetPhoto>> GetPhotosByPetIdAsync(Guid petId, CancellationToken cancellationToken = default);
+        Task<int> CountPhotosByPetIdAsync(Guid petId, CancellationToken cancellationToken = default);
+        Task AddPhotoAsync(PetPhoto photo, CancellationToken cancellationToken = default);
+        void DeletePhoto(PetPhoto photo);
     }
 }

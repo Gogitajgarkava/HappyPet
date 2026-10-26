@@ -16,5 +16,6 @@ namespace HappyPet.Application.Dtos.Responses
         public string? DistinguishingMarks { get; set; }
         public bool IsLost { get; set; }
         public DateTime CreatedAt { get; set; }
+        public List<PetPhotoResponse> Photos { get; set; } = new();
     }
 }

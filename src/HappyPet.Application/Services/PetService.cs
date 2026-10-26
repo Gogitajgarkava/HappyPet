@@ -2,6 +2,7 @@ using HappyPet.Application.Dtos.Requests;
 using HappyPet.Application.Dtos.Responses;
 using HappyPet.Application.Interfaces.Repositories;
 using HappyPet.Application.Interfaces.Services;
+using HappyPet.Application.Interfaces.Storage;
 using HappyPet.Domain.Entities;
 using System;
 using System.Collections.Generic;
@@ -13,13 +14,28 @@ namespace HappyPet.Application.Services
 {
     public class PetService : IPetService
     {
+        private const long MaxPhotoSizeBytes = 5 * 1024 * 1024;
+        private const int MaxPhotosPerPet = 10;
+
+        private static readonly Dictionary<string, string> AllowedImageTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["image/jpeg"] = ".jpg",
+            ["image/png"] = ".png",
+            ["image/webp"] = ".webp"
+        };
+
         private readonly IPetRepository _petRepository;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IFileStorageService _fileStorage;
 
-        public PetService(IPetRepository petRepository, IUnitOfWork unitOfWork)
+        public PetService(
+            IPetRepository petRepository,
+            IUnitOfWork unitOfWork,
+            IFileStorageService fileStorage)
         {
             _petRepository = petRepository;
             _unitOfWork = unitOfWork;
+            _fileStorage = fileStorage;
         }
 
         public async Task<PetResponse> CreateAsync(Guid ownerId, CreatePetRequest request, CancellationToken cancellationToken = default)
@@ -111,8 +127,155 @@ namespace HappyPet.Application.Services
                 throw new KeyNotFoundException("ცხოველი ვერ მოიძებნა.");
             }
 
+            var photos = await _petRepository.GetPhotosByPetIdAsync(id, cancellationToken);
+            foreach (var photo in photos)
+            {
+                await _fileStorage.DeleteAsync(photo.Key, cancellationToken);
+            }
+
             _petRepository.Delete(pet);
             await _unitOfWork.SaveChangesAsync();
+        }
+
+        public async Task<List<PetPhotoResponse>> GetPhotosAsync(Guid petId, CancellationToken cancellationToken = default)
+        {
+            var pet = await _petRepository.GetByIdAsync(petId, cancellationToken);
+            if (pet == null)
+            {
+                throw new KeyNotFoundException("ცხოველი ვერ მოიძებნა.");
+            }
+
+            var photos = await _petRepository.GetPhotosByPetIdAsync(petId, cancellationToken);
+            return photos.Select(MapPhoto).ToList();
+        }
+
+        public async Task<PetPhotoResponse> AddPhotoAsync(
+            Guid petId,
+            Stream stream,
+            long length,
+            string contentType,
+            CancellationToken cancellationToken = default)
+        {
+            var pet = await _petRepository.GetByIdAsync(petId, cancellationToken);
+            if (pet == null)
+            {
+                throw new KeyNotFoundException("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (length <= 0)
+            {
+                throw new InvalidOperationException("სურათი ცარიელია.");
+            }
+
+            if (length > MaxPhotoSizeBytes)
+            {
+                throw new InvalidOperationException("სურათის ზომა არ უნდა აღემატებოდეს 5 MB-ს.");
+            }
+
+            if (!AllowedImageTypes.TryGetValue(contentType, out var extension))
+            {
+                throw new InvalidOperationException("დასაშვებია მხოლოდ JPEG, PNG ან WebP სურათი.");
+            }
+
+            var photoCount = await _petRepository.CountPhotosByPetIdAsync(petId, cancellationToken);
+            if (photoCount >= MaxPhotosPerPet)
+            {
+                throw new InvalidOperationException($"ცხოველზე მაქსიმუმ {MaxPhotosPerPet} სურათის დამატებაა შესაძლებელი.");
+            }
+
+            var storedFile = await _fileStorage.UploadAsync(
+                stream,
+                $"pets/{petId}/photos",
+                extension,
+                contentType,
+                cancellationToken);
+
+            var photo = new PetPhoto
+            {
+                Id = Guid.NewGuid(),
+                PetId = petId,
+                Key = storedFile.Key,
+                ContentType = contentType,
+                SizeBytes = length,
+                IsPrimary = photoCount == 0,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _petRepository.AddPhotoAsync(photo, cancellationToken);
+
+            try
+            {
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            catch
+            {
+                await _fileStorage.DeleteAsync(storedFile.Key, CancellationToken.None);
+                throw;
+            }
+
+            return MapPhoto(photo);
+        }
+
+        public async Task<PetPhotoResponse> SetPrimaryPhotoAsync(Guid petId, Guid photoId, CancellationToken cancellationToken = default)
+        {
+            var pet = await _petRepository.GetByIdAsync(petId, cancellationToken);
+            if (pet == null)
+            {
+                throw new KeyNotFoundException("ცხოველი ვერ მოიძებნა.");
+            }
+
+            var photo = await _petRepository.GetPhotoByIdAsync(photoId, cancellationToken);
+            if (photo == null || photo.PetId != petId)
+            {
+                throw new KeyNotFoundException("სურათი ვერ მოიძებნა.");
+            }
+
+            var photos = await _petRepository.GetPhotosByPetIdAsync(petId, cancellationToken);
+            foreach (var item in photos)
+            {
+                item.IsPrimary = item.Id == photoId;
+                item.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return MapPhoto(photo);
+        }
+
+        public async Task DeletePhotoAsync(Guid petId, Guid photoId, CancellationToken cancellationToken = default)
+        {
+            var pet = await _petRepository.GetByIdAsync(petId, cancellationToken);
+            if (pet == null)
+            {
+                throw new KeyNotFoundException("ცხოველი ვერ მოიძებნა.");
+            }
+
+            var photo = await _petRepository.GetPhotoByIdAsync(photoId, cancellationToken);
+            if (photo == null || photo.PetId != petId)
+            {
+                throw new KeyNotFoundException("სურათი ვერ მოიძებნა.");
+            }
+
+            await _fileStorage.DeleteAsync(photo.Key, cancellationToken);
+
+            var wasPrimary = photo.IsPrimary;
+            _petRepository.DeletePhoto(photo);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            if (wasPrimary)
+            {
+                var remaining = await _petRepository.GetPhotosByPetIdAsync(petId, cancellationToken);
+                var nextPrimary = remaining
+                    .OrderBy(p => p.CreatedAt)
+                    .FirstOrDefault();
+
+                if (nextPrimary != null)
+                {
+                    nextPrimary.IsPrimary = true;
+                    nextPrimary.UpdatedAt = DateTime.UtcNow;
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+            }
         }
 
         private static DateTime? ToUtcOrNull(DateTime? value)
@@ -127,7 +290,7 @@ namespace HappyPet.Application.Services
                 : value.Value.ToUniversalTime();
         }
 
-        private static PetResponse MapToResponse(Pet pet)
+        private PetResponse MapToResponse(Pet pet)
         {
             return new PetResponse
             {
@@ -142,7 +305,24 @@ namespace HappyPet.Application.Services
                 Color = pet.Color,
                 DistinguishingMarks = pet.DistinguishingMarks,
                 IsLost = pet.IsLost,
-                CreatedAt = pet.CreatedAt
+                CreatedAt = pet.CreatedAt,
+                Photos = pet.Photos
+                    .OrderByDescending(p => p.IsPrimary)
+                    .ThenBy(p => p.CreatedAt)
+                    .Select(MapPhoto)
+                    .ToList()
+            };
+        }
+
+        private PetPhotoResponse MapPhoto(PetPhoto photo)
+        {
+            return new PetPhotoResponse
+            {
+                Id = photo.Id,
+                PetId = photo.PetId,
+                Url = _fileStorage.GetUrl(photo.Key),
+                IsPrimary = photo.IsPrimary,
+                CreatedAt = photo.CreatedAt
             };
         }
     }

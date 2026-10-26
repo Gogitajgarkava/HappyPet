@@ -11,5 +11,10 @@ namespace HappyPet.Application.Interfaces.Services
         Task<List<PetResponse>> GetLostAsync(CancellationToken cancellationToken = default);
         Task<PetResponse> UpdateAsync(Guid id, UpdatePetRequest request, CancellationToken cancellationToken = default);
         Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+
+        Task<List<PetPhotoResponse>> GetPhotosAsync(Guid petId, CancellationToken cancellationToken = default);
+        Task<PetPhotoResponse> AddPhotoAsync(Guid petId, Stream stream, long length, string contentType, CancellationToken cancellationToken = default);
+        Task<PetPhotoResponse> SetPrimaryPhotoAsync(Guid petId, Guid photoId, CancellationToken cancellationToken = default);
+        Task DeletePhotoAsync(Guid petId, Guid photoId, CancellationToken cancellationToken = default);
     }
 }

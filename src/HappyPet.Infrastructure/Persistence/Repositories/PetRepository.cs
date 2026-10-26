@@ -36,12 +36,14 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
         public async Task<Pet?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.Pets
+                .Include(p => p.Photos)
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
         public async Task<List<Pet>> GetByOwnerIdAsync(Guid ownerId, CancellationToken cancellationToken = default)
         {
             return await _context.Pets
+                .Include(p => p.Photos)
                 .Where(p => p.OwnerId == ownerId)
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync(cancellationToken);
@@ -50,6 +52,7 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
         public async Task<List<Pet>> GetLostAsync(CancellationToken cancellationToken = default)
         {
             return await _context.Pets
+                .Include(p => p.Photos)
                 .Where(p => p.IsLost)
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync(cancellationToken);
@@ -59,6 +62,37 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
         {
             return await _context.Pets
                 .AnyAsync(p => p.MicrochipNumber == microchipNumber, cancellationToken);
+        }
+
+        public async Task<PetPhoto?> GetPhotoByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return await _context.PetPhotos
+                .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        }
+
+        public async Task<List<PetPhoto>> GetPhotosByPetIdAsync(Guid petId, CancellationToken cancellationToken = default)
+        {
+            return await _context.PetPhotos
+                .Where(p => p.PetId == petId)
+                .OrderByDescending(p => p.IsPrimary)
+                .ThenBy(p => p.CreatedAt)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<int> CountPhotosByPetIdAsync(Guid petId, CancellationToken cancellationToken = default)
+        {
+            return await _context.PetPhotos
+                .CountAsync(p => p.PetId == petId, cancellationToken);
+        }
+
+        public async Task AddPhotoAsync(PetPhoto photo, CancellationToken cancellationToken = default)
+        {
+            await _context.PetPhotos.AddAsync(photo, cancellationToken);
+        }
+
+        public void DeletePhoto(PetPhoto photo)
+        {
+            _context.PetPhotos.Remove(photo);
         }
     }
 }
