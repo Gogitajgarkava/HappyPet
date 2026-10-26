@@ -99,7 +99,7 @@ namespace HappyPet.WebAPI.Controllers
         [HttpPost("{id:guid}/photos")]
         [RequestSizeLimit(6 * 1024 * 1024)]
         [Consumes("multipart/form-data")]
-        public async Task<IActionResult> AddPetPhoto(Guid id, [FromForm] IFormFile file, CancellationToken cancellationToken)
+        public async Task<IActionResult> AddPetPhoto(Guid id, IFormFile file, CancellationToken cancellationToken)
         {
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
