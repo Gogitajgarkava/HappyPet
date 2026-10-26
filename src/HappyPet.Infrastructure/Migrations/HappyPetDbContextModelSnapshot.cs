@@ -24,9 +24,11 @@ namespace HappyPet.Infrastructure.Migrations
 
             modelBuilder.Entity("HappyPet.Domain.Entities.Pet", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime?>("BirthDate")
                         .HasColumnType("timestamp with time zone");
@@ -60,8 +62,8 @@ namespace HappyPet.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<Guid>("OwnerId")
-                        .HasColumnType("uuid");
+                    b.Property<int>("OwnerId")
+                        .HasColumnType("integer");
 
                     b.Property<int>("Species")
                         .HasColumnType("integer");
@@ -81,9 +83,11 @@ namespace HappyPet.Infrastructure.Migrations
 
             modelBuilder.Entity("HappyPet.Domain.Entities.PetPhoto", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("ContentType")
                         .IsRequired()
@@ -101,8 +105,8 @@ namespace HappyPet.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<Guid>("PetId")
-                        .HasColumnType("uuid");
+                    b.Property<int>("PetId")
+                        .HasColumnType("integer");
 
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");
@@ -119,9 +123,11 @@ namespace HappyPet.Infrastructure.Migrations
 
             modelBuilder.Entity("HappyPet.Domain.Entities.User", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Address")
                         .HasColumnType("text");

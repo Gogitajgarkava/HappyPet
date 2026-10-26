@@ -38,7 +38,7 @@ namespace HappyPet.Application.Services
             _fileStorage = fileStorage;
         }
 
-        public async Task<PetResponse> CreateAsync(Guid ownerId, CreatePetRequest request, CancellationToken cancellationToken = default)
+        public async Task<PetResponse> CreateAsync(int ownerId, CreatePetRequest request, CancellationToken cancellationToken = default)
         {
             var microchipNumber = request.MicrochipNumber.Trim();
 
@@ -49,7 +49,6 @@ namespace HappyPet.Application.Services
 
             var newPet = new Pet
             {
-                Id = Guid.NewGuid(),
                 OwnerId = ownerId,
                 Name = request.Name.Trim(),
                 Species = request.Species,
@@ -69,13 +68,13 @@ namespace HappyPet.Application.Services
             return MapToResponse(newPet);
         }
 
-        public async Task<PetResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task<PetResponse?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             var pet = await _petRepository.GetByIdAsync(id, cancellationToken);
             return pet == null ? null : MapToResponse(pet);
         }
 
-        public async Task<List<PetResponse>> GetByOwnerIdAsync(Guid ownerId, CancellationToken cancellationToken = default)
+        public async Task<List<PetResponse>> GetByOwnerIdAsync(int ownerId, CancellationToken cancellationToken = default)
         {
             var pets = await _petRepository.GetByOwnerIdAsync(ownerId, cancellationToken);
             return pets.Select(MapToResponse).ToList();
@@ -87,7 +86,7 @@ namespace HappyPet.Application.Services
             return pets.Select(MapToResponse).ToList();
         }
 
-        public async Task<PetResponse> UpdateAsync(Guid id, UpdatePetRequest request, CancellationToken cancellationToken = default)
+        public async Task<PetResponse> UpdateAsync(int id, UpdatePetRequest request, CancellationToken cancellationToken = default)
         {
             var pet = await _petRepository.GetByIdAsync(id, cancellationToken);
             if (pet == null)
@@ -119,7 +118,7 @@ namespace HappyPet.Application.Services
             return MapToResponse(pet);
         }
 
-        public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
         {
             var pet = await _petRepository.GetByIdAsync(id, cancellationToken);
             if (pet == null)
@@ -137,7 +136,7 @@ namespace HappyPet.Application.Services
             await _unitOfWork.SaveChangesAsync();
         }
 
-        public async Task<List<PetPhotoResponse>> GetPhotosAsync(Guid petId, CancellationToken cancellationToken = default)
+        public async Task<List<PetPhotoResponse>> GetPhotosAsync(int petId, CancellationToken cancellationToken = default)
         {
             var pet = await _petRepository.GetByIdAsync(petId, cancellationToken);
             if (pet == null)
@@ -150,7 +149,7 @@ namespace HappyPet.Application.Services
         }
 
         public async Task<PetPhotoResponse> AddPhotoAsync(
-            Guid petId,
+            int petId,
             Stream stream,
             long length,
             string contentType,
@@ -192,7 +191,6 @@ namespace HappyPet.Application.Services
 
             var photo = new PetPhoto
             {
-                Id = Guid.NewGuid(),
                 PetId = petId,
                 Key = storedFile.Key,
                 ContentType = contentType,
@@ -216,7 +214,7 @@ namespace HappyPet.Application.Services
             return MapPhoto(photo);
         }
 
-        public async Task<PetPhotoResponse> SetPrimaryPhotoAsync(Guid petId, Guid photoId, CancellationToken cancellationToken = default)
+        public async Task<PetPhotoResponse> SetPrimaryPhotoAsync(int petId, int photoId, CancellationToken cancellationToken = default)
         {
             var pet = await _petRepository.GetByIdAsync(petId, cancellationToken);
             if (pet == null)
@@ -242,7 +240,7 @@ namespace HappyPet.Application.Services
             return MapPhoto(photo);
         }
 
-        public async Task DeletePhotoAsync(Guid petId, Guid photoId, CancellationToken cancellationToken = default)
+        public async Task DeletePhotoAsync(int petId, int photoId, CancellationToken cancellationToken = default)
         {
             var pet = await _petRepository.GetByIdAsync(petId, cancellationToken);
             if (pet == null)

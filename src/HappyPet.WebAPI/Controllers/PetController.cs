@@ -42,8 +42,8 @@ namespace HappyPet.WebAPI.Controllers
             }
         }
 
-        [HttpGet("{id:guid}")]
-        public async Task<IActionResult> GetPetById(Guid id, CancellationToken cancellationToken)
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> GetPetById(int id, CancellationToken cancellationToken)
         {
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
@@ -59,8 +59,8 @@ namespace HappyPet.WebAPI.Controllers
             return Ok(pet);
         }
 
-        [HttpGet("owner/{ownerId:guid}")]
-        public async Task<IActionResult> GetPetsByOwner(Guid ownerId, CancellationToken cancellationToken)
+        [HttpGet("owner/{ownerId:int}")]
+        public async Task<IActionResult> GetPetsByOwner(int ownerId, CancellationToken cancellationToken)
         {
             if (!CanAccess(ownerId))
             {
@@ -78,8 +78,8 @@ namespace HappyPet.WebAPI.Controllers
             return Ok(pets);
         }
 
-        [HttpGet("{id:guid}/photos")]
-        public async Task<IActionResult> GetPetPhotos(Guid id, CancellationToken cancellationToken)
+        [HttpGet("{id:int}/photos")]
+        public async Task<IActionResult> GetPetPhotos(int id, CancellationToken cancellationToken)
         {
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
@@ -96,10 +96,10 @@ namespace HappyPet.WebAPI.Controllers
             return Ok(photos);
         }
 
-        [HttpPost("{id:guid}/photos")]
+        [HttpPost("{id:int}/photos")]
         [RequestSizeLimit(6 * 1024 * 1024)]
         [Consumes("multipart/form-data")]
-        public async Task<IActionResult> AddPetPhoto(Guid id, IFormFile file, CancellationToken cancellationToken)
+        public async Task<IActionResult> AddPetPhoto(int id, IFormFile file, CancellationToken cancellationToken)
         {
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
@@ -143,8 +143,8 @@ namespace HappyPet.WebAPI.Controllers
             }
         }
 
-        [HttpPut("{id:guid}/photos/{photoId:guid}/primary")]
-        public async Task<IActionResult> SetPrimaryPetPhoto(Guid id, Guid photoId, CancellationToken cancellationToken)
+        [HttpPut("{id:int}/photos/{photoId:int}/primary")]
+        public async Task<IActionResult> SetPrimaryPetPhoto(int id, int photoId, CancellationToken cancellationToken)
         {
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
@@ -172,8 +172,8 @@ namespace HappyPet.WebAPI.Controllers
             }
         }
 
-        [HttpDelete("{id:guid}/photos/{photoId:guid}")]
-        public async Task<IActionResult> DeletePetPhoto(Guid id, Guid photoId, CancellationToken cancellationToken)
+        [HttpDelete("{id:int}/photos/{photoId:int}")]
+        public async Task<IActionResult> DeletePetPhoto(int id, int photoId, CancellationToken cancellationToken)
         {
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
@@ -201,8 +201,8 @@ namespace HappyPet.WebAPI.Controllers
             }
         }
 
-        [HttpPut("{id:guid}")]
-        public async Task<IActionResult> UpdatePet(Guid id, [FromBody] UpdatePetRequest request, CancellationToken cancellationToken)
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> UpdatePet(int id, [FromBody] UpdatePetRequest request, CancellationToken cancellationToken)
         {
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
@@ -234,8 +234,8 @@ namespace HappyPet.WebAPI.Controllers
             }
         }
 
-        [HttpDelete("{id:guid}")]
-        public async Task<IActionResult> DeletePet(Guid id, CancellationToken cancellationToken)
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> DeletePet(int id, CancellationToken cancellationToken)
         {
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
@@ -263,16 +263,16 @@ namespace HappyPet.WebAPI.Controllers
             }
         }
 
-        private Guid? CurrentUserId
+        private int? CurrentUserId
         {
             get
             {
                 var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                return Guid.TryParse(value, out var id) ? id : null;
+                return int.TryParse(value, out var id) ? id : null;
             }
         }
 
-        private bool CanAccess(Guid ownerId)
+        private bool CanAccess(int ownerId)
         {
             return User.IsInRole(nameof(UserRole.Admin)) || CurrentUserId == ownerId;
         }

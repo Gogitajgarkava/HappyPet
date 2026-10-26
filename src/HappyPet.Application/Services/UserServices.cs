@@ -49,7 +49,6 @@ namespace HappyPet.Application.Services
 
             var newUser = new User
             {
-                Id = Guid.NewGuid(),
                 PersonalId = personalId,
                 FirstName = request.FirstName.Trim(),
                 LastName = request.LastName.Trim(),
@@ -69,7 +68,7 @@ namespace HappyPet.Application.Services
             return MapToResponse(newUser);
         }
 
-        public async Task<UserResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task<UserResponse?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             var user = await _userRepository.GetByIdAsync(id, cancellationToken);
             return user == null ? null : MapToResponse(user);
@@ -81,7 +80,7 @@ namespace HappyPet.Application.Services
             return user == null ? null : MapToResponse(user);
         }
 
-        public async Task<UserResponse> UpdateAsync(Guid id, UpdateUserRequest request, CancellationToken cancellationToken)
+        public async Task<UserResponse> UpdateAsync(int id, UpdateUserRequest request, CancellationToken cancellationToken)
         {
             var user = await _userRepository.GetByIdAsync(id, cancellationToken);
             if (user == null)
@@ -100,7 +99,7 @@ namespace HappyPet.Application.Services
             return MapToResponse(user);
         }
 
-        public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
         {
             var user = await _userRepository.GetByIdAsync(id, cancellationToken);
             if (user == null)

@@ -11,9 +11,9 @@ namespace HappyPet.Application.Interfaces.Services
     public interface IUserServices
     {
         Task<UserResponse> RegisterAsync(CreateUserRequest request, CancellationToken cancellationToken = default);
-        Task<UserResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<UserResponse?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
         Task<UserResponse?> GetByEmailAsync(string email, CancellationToken cancellationToken = default);
-        Task<UserResponse> UpdateAsync(Guid id, UpdateUserRequest request, CancellationToken cancellationToken = default);
-        Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<UserResponse> UpdateAsync(int id, UpdateUserRequest request, CancellationToken cancellationToken = default);
+        Task DeleteAsync(int id, CancellationToken cancellationToken = default);
     }
 }

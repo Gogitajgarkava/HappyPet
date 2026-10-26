@@ -33,14 +33,14 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
             _context.Pets.Remove(pet);
         }
 
-        public async Task<Pet?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task<Pet?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             return await _context.Pets
                 .Include(p => p.Photos)
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
-        public async Task<List<Pet>> GetByOwnerIdAsync(Guid ownerId, CancellationToken cancellationToken = default)
+        public async Task<List<Pet>> GetByOwnerIdAsync(int ownerId, CancellationToken cancellationToken = default)
         {
             return await _context.Pets
                 .Include(p => p.Photos)
@@ -64,13 +64,13 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
                 .AnyAsync(p => p.MicrochipNumber == microchipNumber, cancellationToken);
         }
 
-        public async Task<PetPhoto?> GetPhotoByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task<PetPhoto?> GetPhotoByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             return await _context.PetPhotos
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
-        public async Task<List<PetPhoto>> GetPhotosByPetIdAsync(Guid petId, CancellationToken cancellationToken = default)
+        public async Task<List<PetPhoto>> GetPhotosByPetIdAsync(int petId, CancellationToken cancellationToken = default)
         {
             return await _context.PetPhotos
                 .Where(p => p.PetId == petId)
@@ -79,7 +79,7 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
         }
 
-        public async Task<int> CountPhotosByPetIdAsync(Guid petId, CancellationToken cancellationToken = default)
+        public async Task<int> CountPhotosByPetIdAsync(int petId, CancellationToken cancellationToken = default)
         {
             return await _context.PetPhotos
                 .CountAsync(p => p.PetId == petId, cancellationToken);

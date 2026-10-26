@@ -5,7 +5,7 @@ namespace HappyPet.Application.Dtos.Responses
 {
     public class UserResponse
     {
-        public Guid Id { get; set; }
+        public int Id { get; set; }
         public string PersonalId { get; set; } = string.Empty;
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;

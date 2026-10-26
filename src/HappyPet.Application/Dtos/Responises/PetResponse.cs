@@ -4,8 +4,8 @@ namespace HappyPet.Application.Dtos.Responses
 {
     public class PetResponse
     {
-        public Guid Id { get; set; }
-        public Guid OwnerId { get; set; }
+        public int Id { get; set; }
+        public int OwnerId { get; set; }
         public string Name { get; set; } = string.Empty;
         public PetSpecies Species { get; set; }
         public string? Breed { get; set; }

@@ -31,7 +31,7 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
             _context.Users.Remove(user);
         }
 
-        public async Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task<User?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             return await _context.Users
                 .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
@@ -50,7 +50,7 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(u => u.PersonalId == personalId, cancellationToken);
         }
 
-        public async Task<User?> GetWithPetsAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task<User?> GetWithPetsAsync(int id, CancellationToken cancellationToken = default)
         {
             return await _context.Users
                 .Include(u => u.Pets)

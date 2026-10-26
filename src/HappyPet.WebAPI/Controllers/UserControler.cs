@@ -38,8 +38,8 @@ namespace HappyPet.WebAPI.Controllers
             }
         }
 
-        [HttpGet("{id:guid}")]
-        public async Task<IActionResult> GetUserById(Guid id, CancellationToken cancellationToken)
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> GetUserById(int id, CancellationToken cancellationToken)
         {
             var user = await _userService.GetByIdAsync(id, cancellationToken);
             if (user == null)
@@ -72,8 +72,8 @@ namespace HappyPet.WebAPI.Controllers
             return Ok(user);
         }
 
-        [HttpPut("{id:guid}")]
-        public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserRequest request, CancellationToken cancellationToken)
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserRequest request, CancellationToken cancellationToken)
         {
             var existing = await _userService.GetByIdAsync(id, cancellationToken);
             if (existing == null)
@@ -101,8 +101,8 @@ namespace HappyPet.WebAPI.Controllers
             }
         }
 
-        [HttpDelete("{id:guid}")]
-        public async Task<IActionResult> DeleteUser(Guid id, CancellationToken cancellationToken)
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> DeleteUser(int id, CancellationToken cancellationToken)
         {
             var existing = await _userService.GetByIdAsync(id, cancellationToken);
             if (existing == null)
@@ -126,16 +126,16 @@ namespace HappyPet.WebAPI.Controllers
             }
         }
 
-        private Guid? CurrentUserId
+        private int? CurrentUserId
         {
             get
             {
                 var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                return Guid.TryParse(value, out var id) ? id : null;
+                return int.TryParse(value, out var id) ? id : null;
             }
         }
 
-        private bool CanAccess(Guid userId)
+        private bool CanAccess(int userId)
         {
             return User.IsInRole(nameof(UserRole.Admin)) || CurrentUserId == userId;
         }

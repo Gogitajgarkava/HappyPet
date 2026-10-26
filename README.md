@@ -72,6 +72,8 @@ Dependency direction: `Domain <- Application <- Infrastructure <- WebAPI`.
 
 All endpoints are under `/api/v1`. Registration and login are public; every other endpoint requires `Authorization: Bearer <token>`.
 
+Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api/v1/pet/1`, `/api/v1/pet/1/photos/2`.
+
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | POST | `/api/v1/user/add-user` | Register a user |
@@ -132,4 +134,5 @@ dotnet ef migrations remove -p src/HappyPet.Infrastructure -s src/HappyPet.WebAP
 - `appsettings.json` is git-ignored; create it by copying `appsettings.example.json` and filling in your own password and JWT secret.
 - JWT settings live under `Jwt` (`Secret`, `Issuer`, `Audience`); tokens are valid for 7 days.
 - Enums are serialized as strings (e.g. `"role": "User"`, `"species": "Dog"`).
+- The current schema uses integer IDs. A database created with the previous GUID schema must be recreated; there is no in-place GUID-to-integer upgrade migration.
 - For the frontend integration details see `docs/HappyPet-Frontend-Integration-Guide.docx`.

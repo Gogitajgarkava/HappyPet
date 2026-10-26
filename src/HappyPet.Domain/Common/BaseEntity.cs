@@ -5,7 +5,7 @@ namespace HappyPet.Domain.Common;
 /// </summary>
 public abstract class BaseEntity
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public int Id { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
