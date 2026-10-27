@@ -15,7 +15,7 @@ namespace HappyPet.Application.Dtos.Requests
         [MaxLength(50)]
         public string? Breed { get; set; }
 
-        [Required(ErrorMessage = "მიკროჩიპის ნომერი სავალდებულოა.")]
+
         [MaxLength(15, ErrorMessage = "მიკროჩიპის ნომერი არ უნდა აღემატებოდეს 15 სიმბოლოს.")]
         public string MicrochipNumber { get; set; } = string.Empty;
 
