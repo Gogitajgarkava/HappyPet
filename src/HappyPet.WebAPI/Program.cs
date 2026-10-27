@@ -1,10 +1,13 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using HappyPet.Application.Interfaces.Code;
+using HappyPet.Application.Interfaces.Mail;
 using HappyPet.Application.Interfaces.Repositories;
 using HappyPet.Application.Interfaces.Security;
 using HappyPet.Application.Interfaces.Services;
 using HappyPet.Application.Interfaces.Storage;
 using HappyPet.Application.Services;
+using HappyPet.Infrastructure.ExentialServices;
 using HappyPet.Infrastructure.Persistence;
 using HappyPet.Infrastructure.Persistence.Repositories;
 using HappyPet.Infrastructure.Security;
@@ -82,6 +85,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
+builder.Services.AddScoped<IOtpHasher, OtpHasher>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IPetRepository, PetRepository>();
@@ -90,6 +94,8 @@ builder.Services.AddScoped<IPetService, PetService>();
 builder.Services.AddSingleton<IFileStorageService, S3FileStorageService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenGenerator, TokenGenerator>();
+builder.Services.AddScoped<ICodeGenerator, CodeGenerator>();
+builder.Services.AddScoped<IEmailSender, EmailSender>();
 
 
 var app = builder.Build();

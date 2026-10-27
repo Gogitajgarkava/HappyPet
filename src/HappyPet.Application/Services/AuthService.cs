@@ -1,5 +1,6 @@
 ﻿using HappyPet.Application.Dtos.Requests;
 using HappyPet.Application.Dtos.Responises;
+using HappyPet.Application.Exceptions;
 using HappyPet.Application.Interfaces.Repositories;
 using HappyPet.Application.Interfaces.Security;
 using HappyPet.Application.Interfaces.Services;
@@ -42,6 +43,11 @@ namespace HappyPet.Application.Services
                 throw new UnauthorizedAccessException("არასწორი ელ-ფოსტა ან პაროლი.");
             }
 
+            if (!user.IsEmailVerified)
+            {
+                throw new EmailNotVerifiedException();
+            }
+
             string token = _tokenGenerator.GenerateToken(user);
 
             return new LoginResponse
@@ -50,7 +56,8 @@ namespace HappyPet.Application.Services
                 Email = user.Email,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
-                Role = user.Role.ToString()
+                Role = user.Role.ToString(),
+                IsEmailVerified = user.IsEmailVerified
             };
         }
     }

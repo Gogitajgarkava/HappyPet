@@ -1,9 +1,7 @@
 ﻿using HappyPet.Application.Interfaces.Repositories;
 using HappyPet.Domain.Entities;
+using HappyPet.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace HappyPet.Infrastructure.Persistence.Repositories
 {
@@ -68,6 +66,50 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
         {
             return await _context.Users
                 .AnyAsync(u => u.PersonalId == personalId, cancellationToken);
+        }
+
+        public async Task AddOtpCodeAsync(UserOtpCode code, CancellationToken cancellationToken = default)
+        {
+            await _context.UserOtpCodes.AddAsync(code, cancellationToken);
+        }
+
+        public async Task<UserOtpCode?> GetLatestOtpCodeAsync(
+            int userId,
+            OtpPurpose purpose,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.UserOtpCodes
+                .Where(c => c.UserId == userId && c.Purpose == purpose)
+                .OrderByDescending(c => c.CreatedAt)
+                .ThenByDescending(c => c.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<List<UserOtpCode>> GetActiveOtpCodesAsync(
+            int userId,
+            OtpPurpose purpose,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.UserOtpCodes
+                .Where(c => c.UserId == userId && c.Purpose == purpose && c.ConsumedAt == null)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<int> CountOtpCodesSinceAsync(
+            int userId,
+            OtpPurpose purpose,
+            DateTime sinceUtc,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.UserOtpCodes
+                .CountAsync(
+                    c => c.UserId == userId && c.Purpose == purpose && c.CreatedAt >= sinceUtc,
+                    cancellationToken);
+        }
+
+        public void UpdateOtpCode(UserOtpCode code)
+        {
+            _context.UserOtpCodes.Update(code);
         }
     }
 }

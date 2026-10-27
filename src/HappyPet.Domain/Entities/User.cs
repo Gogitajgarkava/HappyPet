@@ -18,9 +18,11 @@ namespace HappyPet.Domain.Entities
         public string Password { get; set; }
         public string PhoneNumber { get; set; }
         public Enums.UserRole Role { get; set; } = Enums.UserRole.PetOwner;
-        public bool IsVerified { get; set; } = false;
+        public bool IsEmailVerified { get; set; } = false;
+        public DateTime? EmailVerifiedAt { get; set; }
         public string? Address { get; set; }
 
         public ICollection<Pet> Pets { get; set; } = new List<Pet>();
+        public ICollection<UserOtpCode> OtpCodes { get; set; } = new List<UserOtpCode>();
     }
 }

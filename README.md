@@ -70,14 +70,18 @@ Dependency direction: `Domain <- Application <- Infrastructure <- WebAPI`.
 
 ## API
 
-All endpoints are under `/api/v1`. Registration and login are public; every other endpoint requires `Authorization: Bearer <token>`.
+All endpoints are under `/api/v1`. Registration, login, email verification and password recovery are public; every other endpoint requires `Authorization: Bearer <token>`.
 
 Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api/v1/pet/1`, `/api/v1/pet/1/photos/2`.
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| POST | `/api/v1/user/add-user` | Register a user |
+| POST | `/api/v1/user/add-user` | Register a user and send an email-verification OTP |
 | POST | `/api/v1/auth/login` | Login and receive a JWT |
+| POST | `/api/v1/auth/verify-email` | Verify an email with a 6-digit OTP |
+| POST | `/api/v1/auth/resend-verification` | Resend the email-verification OTP |
+| POST | `/api/v1/auth/forgot-password` | Send a password-reset OTP |
+| POST | `/api/v1/auth/reset-password` | Reset a password with an OTP |
 | GET | `/api/v1/user/{id}` | Get user by id (owner or admin) |
 | GET | `/api/v1/user/{email}` | Get user by email (owner or admin) |
 | PUT | `/api/v1/user/{id}` | Update profile (owner or admin) |
@@ -94,6 +98,40 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | DELETE | `/api/v1/pet/{id}/photos/{photoId}` | Delete a pet photo (owner or admin) |
 
 CORS is enabled for `http://localhost:3000` and `http://localhost:5173` by default. Override with `Cors:AllowedOrigins` in configuration.
+
+## Email verification and password recovery (OTP)
+
+Registration creates the account with `isEmailVerified: false` and sends a 6-digit OTP to the registered email address. Login is blocked until the email is verified.
+
+| Rule | Value |
+| --- | --- |
+| OTP length | 6 digits |
+| Email-verification lifetime | 15 minutes |
+| Password-reset lifetime | 10 minutes |
+| Maximum verification attempts | 5 |
+| Resend cooldown | 60 seconds |
+| Maximum sends per purpose | 3 per 15 minutes |
+
+- Only an HMAC-SHA256 hash of the OTP is stored. OTP values are never returned by the API or written to logs.
+- Requesting a new OTP invalidates the previous active OTP for the same purpose.
+- `verify-email` and `reset-password` accept `email` + `code`; `reset-password` also requires `newPassword` (minimum 6 characters).
+- `resend-verification` and `forgot-password` always return a generic success response so they do not reveal whether an account exists.
+- An unverified login returns `403` with `{ "code": "EMAIL_NOT_VERIFIED", "message": "..." }`.
+- Existing accounts are marked as email-verified by the `AddEmailVerificationOtp` migration so they are not locked out.
+
+Configuration:
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `Email:SmtpHost` | no | SMTP host; default `smtp.gmail.com` |
+| `Email:SmtpPort` | no | SMTP port; default `587` |
+| `Email:EnableSsl` | no | Enable STARTTLS/SSL; default `true` |
+| `Email:From` | no | Sender address; defaults to `Email:SmtpUser` |
+| `Email:SmtpUser` / `Email:SmtpPassword` | yes | SMTP credentials |
+| `Otp:HashKey` | yes | Random secret of at least 32 characters used to hash OTPs |
+
+- Use different random values for `Jwt:Secret` and `Otp:HashKey`.
+- Never commit real SMTP or OTP secrets. `appsettings.json` and `appsettings.Development.json` are git-ignored.
 
 ## Photo storage (AWS S3)
 
@@ -131,7 +169,7 @@ dotnet ef migrations remove -p src/HappyPet.Infrastructure -s src/HappyPet.WebAP
 ## Notes
 
 - Connection string: `src/HappyPet.WebAPI/appsettings.json` (`ConnectionStrings:DefaultConnection`, port `5433`).
-- `appsettings.json` is git-ignored; create it by copying `appsettings.example.json` and filling in your own password and JWT secret.
+- `appsettings.json` and `appsettings.Development.json` are git-ignored. Create them from `appsettings.example.json` and fill in the database password, JWT secret, SMTP credentials and OTP hash key.
 - JWT settings live under `Jwt` (`Secret`, `Issuer`, `Audience`); tokens are valid for 7 days.
 - Enums are serialized as strings (e.g. `"role": "User"`, `"species": "Dog"`).
 - The current schema uses integer IDs. A database created with the previous GUID schema must be recreated; there is no in-place GUID-to-integer upgrade migration.

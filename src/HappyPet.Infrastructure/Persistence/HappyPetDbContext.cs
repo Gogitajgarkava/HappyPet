@@ -9,6 +9,7 @@ namespace HappyPet.Infrastructure.Persistence
                public DbSet<User> Users => Set<User>();
         public DbSet<Pet> Pets => Set<Pet>();
         public DbSet<PetPhoto> PetPhotos => Set<PetPhoto>();
+        public DbSet<UserOtpCode> UserOtpCodes => Set<UserOtpCode>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -52,6 +53,23 @@ namespace HappyPet.Infrastructure.Persistence
                       .WithMany(p => p.Photos)
                       .HasForeignKey(p => p.PetId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<UserOtpCode>(entity =>
+            {
+                entity.HasKey(c => c.Id);
+                entity.HasIndex(c => new { c.UserId, c.Purpose, c.CreatedAt });
+                entity.Property(c => c.Purpose)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .IsRequired();
+                entity.Property(c => c.CodeHash).IsRequired().HasMaxLength(64);
+                entity.Property(c => c.ExpiresAt).IsRequired();
+
+                entity.HasOne(c => c.User)
+                    .WithMany(u => u.OtpCodes)
+                    .HasForeignKey(c => c.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

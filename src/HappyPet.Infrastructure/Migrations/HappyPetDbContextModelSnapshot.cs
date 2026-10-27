@@ -143,12 +143,15 @@ namespace HappyPet.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("EmailVerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<bool>("IsVerified")
+                    b.Property<bool>("IsEmailVerified")
                         .HasColumnType("boolean");
 
                     b.Property<string>("LastName")
@@ -187,6 +190,49 @@ namespace HappyPet.Infrastructure.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("HappyPet.Domain.Entities.UserOtpCode", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("ConsumedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Purpose", "CreatedAt");
+
+                    b.ToTable("UserOtpCodes");
+                });
+
             modelBuilder.Entity("HappyPet.Domain.Entities.Pet", b =>
                 {
                     b.HasOne("HappyPet.Domain.Entities.User", "Owner")
@@ -209,6 +255,17 @@ namespace HappyPet.Infrastructure.Migrations
                     b.Navigation("Pet");
                 });
 
+            modelBuilder.Entity("HappyPet.Domain.Entities.UserOtpCode", b =>
+                {
+                    b.HasOne("HappyPet.Domain.Entities.User", "User")
+                        .WithMany("OtpCodes")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("HappyPet.Domain.Entities.Pet", b =>
                 {
                     b.Navigation("Photos");
@@ -216,6 +273,8 @@ namespace HappyPet.Infrastructure.Migrations
 
             modelBuilder.Entity("HappyPet.Domain.Entities.User", b =>
                 {
+                    b.Navigation("OtpCodes");
+
                     b.Navigation("Pets");
                 });
 #pragma warning restore 612, 618

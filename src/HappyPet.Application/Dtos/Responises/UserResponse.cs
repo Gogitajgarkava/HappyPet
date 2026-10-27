@@ -13,7 +13,8 @@ namespace HappyPet.Application.Dtos.Responses
         public string Email { get; set; } = string.Empty;
         public string PhoneNumber { get; set; } = string.Empty;
         public UserRole Role { get; set; }
-        public bool IsVerified { get; set; }
+        public bool IsEmailVerified { get; set; }
+        public DateTime? EmailVerifiedAt { get; set; }
         public string? Address { get; set; }
         public string? ProfileImageUrl { get; set; }
         public DateTime CreatedAt { get; set; }

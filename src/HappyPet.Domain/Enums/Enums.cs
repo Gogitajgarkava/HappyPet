@@ -29,4 +29,10 @@ namespace HappyPet.Domain.Enums
         Neutered = 3,
         Spayed = 4
     }
+
+    public enum OtpPurpose
+    {
+        EmailVerification = 1,
+        PasswordReset = 2
+    }
 }
