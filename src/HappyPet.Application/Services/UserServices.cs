@@ -158,9 +158,10 @@ namespace HappyPet.Application.Services
                 throw new InvalidOperationException(InvalidOtpMessage);
             }
 
+            // Never short-circuit verified accounts: doing so accepts any code, including a used password-reset code.
             if (user.IsEmailVerified)
             {
-                return;
+                throw new InvalidOperationException("ელ-ფოსტა უკვე დადასტურებულია.");
             }
 
             var now = DateTime.UtcNow;

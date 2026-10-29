@@ -115,6 +115,8 @@ Registration creates the account with `isEmailVerified: false` and sends a 6-dig
 - Only an HMAC-SHA256 hash of the OTP is stored. OTP values are never returned by the API or written to logs.
 - Requesting a new OTP invalidates the previous active OTP for the same purpose.
 - `verify-email` and `reset-password` accept `email` + `code`; `reset-password` also requires `newPassword` (minimum 6 characters).
+- OTPs are purpose-scoped: an email-verification code cannot reset a password, and a password-reset code cannot verify an email.
+- `verify-email` returns `400` with `{ "message": "ელ-ფოსტა უკვე დადასტურებულია." }` if the email is already verified; a code is not accepted or consumed in that case.
 - `resend-verification` and `forgot-password` always return a generic success response so they do not reveal whether an account exists.
 - An unverified login returns `403` with `{ "code": "EMAIL_NOT_VERIFIED", "message": "..." }`.
 - Existing accounts are marked as email-verified by the `AddEmailVerificationOtp` migration so they are not locked out.
