@@ -10,6 +10,7 @@ namespace HappyPet.Infrastructure.Persistence
         public DbSet<Pet> Pets => Set<Pet>();
         public DbSet<PetPhoto> PetPhotos => Set<PetPhoto>();
         public DbSet<UserOtpCode> UserOtpCodes => Set<UserOtpCode>();
+        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -69,6 +70,23 @@ namespace HappyPet.Infrastructure.Persistence
                 entity.HasOne(c => c.User)
                     .WithMany(u => u.OtpCodes)
                     .HasForeignKey(c => c.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<RefreshToken>(entity =>
+            {
+                entity.HasKey(t => t.Id);
+                entity.HasIndex(t => t.TokenHash).IsUnique();
+                entity.HasIndex(t => new { t.UserId, t.ExpiresAt });
+                entity.HasIndex(t => t.FamilyId);
+                entity.Property(t => t.TokenHash).IsRequired().HasMaxLength(64);
+                entity.Property(t => t.ReplacedByTokenHash).HasMaxLength(64);
+                entity.Property(t => t.RevocationReason).HasMaxLength(50);
+                entity.Property(t => t.ExpiresAt).IsRequired();
+
+                entity.HasOne(t => t.User)
+                    .WithMany(u => u.RefreshTokens)
+                    .HasForeignKey(t => t.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
         }

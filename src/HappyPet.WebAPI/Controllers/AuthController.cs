@@ -1,7 +1,9 @@
 ﻿using HappyPet.Application.Dtos.Requests;
 using HappyPet.Application.Exceptions;
 using HappyPet.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace HappyPet.WebAPI.Controllers
 {
@@ -9,6 +11,9 @@ namespace HappyPet.WebAPI.Controllers
     [Route("api/v1/auth")]
     public class AuthController : ControllerBase
     {
+        private const string RefreshTokenCookieName = "happypet_refresh";
+        private const string RefreshTokenCookiePath = "/api/v1/auth";
+
         private readonly IAuthService _authService;
         private readonly IUserServices _userService;
 
@@ -23,8 +28,9 @@ namespace HappyPet.WebAPI.Controllers
         {
             try
             {
-                var response = await _authService.LoginAsync(request, cancellationToken);
-                return Ok(response);
+                var result = await _authService.LoginAsync(request, cancellationToken);
+                SetRefreshTokenCookie(result.RefreshToken, result.RefreshTokenExpiresAt);
+                return Ok(result.Response);
             }
             catch (EmailNotVerifiedException ex)
             {
@@ -38,6 +44,69 @@ namespace HappyPet.WebAPI.Controllers
             {
                 return Unauthorized(new { message = ex.Message });
             }
+        }
+
+        [HttpPost("refresh")]
+        public async Task<IActionResult> Refresh(CancellationToken cancellationToken)
+        {
+            var refreshToken = Request.Cookies[RefreshTokenCookieName];
+            if (string.IsNullOrWhiteSpace(refreshToken))
+            {
+                DeleteRefreshTokenCookie();
+                return Unauthorized(new
+                {
+                    code = "REFRESH_TOKEN_MISSING",
+                    message = "სესია ვადაგასულია. გთხოვთ ხელახლა შეხვიდეთ."
+                });
+            }
+
+            try
+            {
+                var result = await _authService.RefreshAsync(refreshToken, cancellationToken);
+                SetRefreshTokenCookie(result.RefreshToken, result.RefreshTokenExpiresAt);
+                return Ok(result.Response);
+            }
+            catch (EmailNotVerifiedException ex)
+            {
+                DeleteRefreshTokenCookie();
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    code = "EMAIL_NOT_VERIFIED",
+                    message = ex.Message
+                });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                DeleteRefreshTokenCookie();
+                return Unauthorized(new
+                {
+                    code = "REFRESH_TOKEN_INVALID",
+                    message = ex.Message
+                });
+            }
+        }
+
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout(CancellationToken cancellationToken)
+        {
+            var refreshToken = Request.Cookies[RefreshTokenCookieName];
+            await _authService.LogoutAsync(refreshToken ?? string.Empty, cancellationToken);
+            DeleteRefreshTokenCookie();
+            return Ok(new { message = "სესია წარმატებით დაიხურა." });
+        }
+
+        [Authorize]
+        [HttpPost("logout-all")]
+        public async Task<IActionResult> LogoutAll(CancellationToken cancellationToken)
+        {
+            if (CurrentUserId == null)
+            {
+                return Unauthorized();
+            }
+
+            await _authService.LogoutAllAsync(CurrentUserId.Value, cancellationToken);
+            DeleteRefreshTokenCookie();
+            return Ok(new { message = "ყველა სესია დაიხურა." });
         }
 
         [HttpPost("verify-email")]
@@ -79,6 +148,41 @@ namespace HappyPet.WebAPI.Controllers
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        private void SetRefreshTokenCookie(string token, DateTime expiresAt)
+        {
+            Response.Cookies.Append(RefreshTokenCookieName, token, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Lax,
+                Path = RefreshTokenCookiePath,
+                Expires = new DateTimeOffset(expiresAt.ToUniversalTime()),
+                IsEssential = true
+            });
+        }
+
+        private void DeleteRefreshTokenCookie()
+        {
+            Response.Cookies.Append(RefreshTokenCookieName, string.Empty, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Lax,
+                Path = RefreshTokenCookiePath,
+                Expires = DateTimeOffset.UnixEpoch,
+                IsEssential = true
+            });
+        }
+
+        private int? CurrentUserId
+        {
+            get
+            {
+                var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                return int.TryParse(value, out var id) ? id : null;
             }
         }
     }

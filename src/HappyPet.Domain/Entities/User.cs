@@ -24,5 +24,6 @@ namespace HappyPet.Domain.Entities
 
         public ICollection<Pet> Pets { get; set; } = new List<Pet>();
         public ICollection<UserOtpCode> OtpCodes { get; set; } = new List<UserOtpCode>();
+        public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     }
 }

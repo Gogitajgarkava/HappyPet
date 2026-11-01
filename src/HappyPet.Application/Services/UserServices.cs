@@ -29,6 +29,7 @@ namespace HappyPet.Application.Services
         private readonly IEmailSender _emailService;
         private readonly ICodeGenerator _codeGenerator;
         private readonly IOtpHasher _otpHasher;
+        private readonly IRefreshTokenRepository _refreshTokenRepository;
 
         public UserServices(
             IUserRepository userRepository,
@@ -36,7 +37,8 @@ namespace HappyPet.Application.Services
             IUnitOfWork unitOfWork,
             IEmailSender emailService,
             ICodeGenerator codeGenerator,
-            IOtpHasher otpHasher)
+            IOtpHasher otpHasher,
+            IRefreshTokenRepository refreshTokenRepository)
         {
             _userRepository = userRepository;
             _passwordHasher = passwordHasher;
@@ -44,6 +46,7 @@ namespace HappyPet.Application.Services
             _emailService = emailService;
             _codeGenerator = codeGenerator;
             _otpHasher = otpHasher;
+            _refreshTokenRepository = refreshTokenRepository;
         }
 
         public async Task<UserResponse> RegisterAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
@@ -281,6 +284,12 @@ namespace HappyPet.Application.Services
                 now,
                 cancellationToken);
 
+            await RevokeActiveRefreshTokensAsync(
+                user.Id,
+                now,
+                "password-reset",
+                cancellationToken);
+
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
@@ -337,6 +346,26 @@ namespace HappyPet.Application.Services
                 : $"პაროლის აღსადგენად შეიყვანეთ კოდი: {code}\n\nკოდი მოქმედია 10 წუთის განმავლობაში. თუ ეს მოთხოვნა თქვენ არ გამოგზავნიათ, უგულებელყავით წერილი.";
 
             await _emailService.SendEmailAsync(user.Email, subject, body, cancellationToken);
+        }
+
+        private async Task RevokeActiveRefreshTokensAsync(
+            int userId,
+            DateTime now,
+            string reason,
+            CancellationToken cancellationToken)
+        {
+            var activeTokens = await _refreshTokenRepository.GetActiveByUserAsync(
+                userId,
+                now,
+                cancellationToken);
+
+            foreach (var token in activeTokens)
+            {
+                token.RevokedAt = now;
+                token.RevocationReason = reason;
+                token.UpdatedAt = now;
+                _refreshTokenRepository.Update(token);
+            }
         }
 
         private async Task ConsumeActiveOtpCodesAsync(

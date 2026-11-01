@@ -6,6 +6,7 @@ using HappyPet.Application.Interfaces.Repositories;
 using HappyPet.Application.Interfaces.Security;
 using HappyPet.Application.Interfaces.Services;
 using HappyPet.Application.Interfaces.Storage;
+using HappyPet.Application.Options;
 using HappyPet.Application.Services;
 using HappyPet.Infrastructure.ExentialServices;
 using HappyPet.Infrastructure.Persistence;
@@ -13,6 +14,7 @@ using HappyPet.Infrastructure.Persistence.Repositories;
 using HappyPet.Infrastructure.Security;
 using HappyPet.Infrastructure.Securuty;
 using HappyPet.Infrastructure.Storage;
+using HappyPet.WebAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -60,13 +62,36 @@ builder.Services.AddCors(options =>
     options.AddPolicy("Frontend", policy =>
         policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
-              .AllowAnyMethod()));
+              .AllowAnyMethod()
+              .AllowCredentials()));
+
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+
+var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
+if (string.IsNullOrWhiteSpace(jwtOptions.Secret) || jwtOptions.Secret.Length < 32)
+{
+    throw new InvalidOperationException("Jwt:Secret კონფიგურაცია აუცილებელია და უნდა იყოს მინიმუმ 32 სიმბოლო.");
+}
+
+if (jwtOptions.AccessTokenMinutes <= 0)
+{
+    throw new InvalidOperationException("Jwt:AccessTokenMinutes უნდა იყოს დადებითი რიცხვი.");
+}
+
+if (jwtOptions.RefreshTokenDays <= 0)
+{
+    throw new InvalidOperationException("Jwt:RefreshTokenDays უნდა იყოს დადებითი რიცხვი.");
+}
+
+if (string.IsNullOrWhiteSpace(jwtOptions.RefreshTokenHashKey) || jwtOptions.RefreshTokenHashKey.Length < 32)
+{
+    throw new InvalidOperationException("Jwt:RefreshTokenHashKey კონფიგურაცია აუცილებელია და უნდა იყოს მინიმუმ 32 სიმბოლო.");
+}
 
 builder.Services.AddDbContext<HappyPetDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-var jwtSecret = builder.Configuration["Jwt:Secret"]
-    ?? throw new InvalidOperationException("JWT Secret key is missing in configuration!");
+var jwtSecret = jwtOptions.Secret;
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -89,13 +114,17 @@ builder.Services.AddScoped<IOtpHasher, OtpHasher>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IPetRepository, PetRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IUserServices, UserServices>();
 builder.Services.AddScoped<IPetService, PetService>();
 builder.Services.AddSingleton<IFileStorageService, S3FileStorageService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenGenerator, TokenGenerator>();
+builder.Services.AddScoped<IRefreshTokenGenerator, RefreshTokenGenerator>();
+builder.Services.AddScoped<IRefreshTokenHasher, RefreshTokenHasher>();
 builder.Services.AddScoped<ICodeGenerator, CodeGenerator>();
 builder.Services.AddScoped<IEmailSender, EmailSender>();
+builder.Services.AddHostedService<RefreshTokenCleanupService>();
 
 
 var app = builder.Build();

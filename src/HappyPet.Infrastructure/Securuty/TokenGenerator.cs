@@ -1,58 +1,60 @@
 ﻿using HappyPet.Application.Interfaces.Security;
+using HappyPet.Application.Options;
 using HappyPet.Domain.Entities;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using System;
-using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
 using System.Security.Claims;
 using System.Text;
-using System.Threading.Tasks;
 
-namespace HappyPet.Infrastructure.Securuty; 
-
+namespace HappyPet.Infrastructure.Securuty
+{
     public class TokenGenerator : ITokenGenerator
     {
-        private readonly IConfiguration _configuration;
+        private readonly IOptions<JwtOptions> _options;
 
-        public TokenGenerator(IConfiguration configuration)
+        public TokenGenerator(IOptions<JwtOptions> options)
         {
-            _configuration = configuration;
+            _options = options;
         }
 
-        public string GenerateToken(User user)
+        public AccessTokenResult GenerateToken(User user)
         {
-            var claims = new List<Claim>
-    {
-        new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-        new Claim(ClaimTypes.UserData, user.FirstName),
-        new Claim(ClaimTypes.Role, user.Role.ToString())
-    };
+            var options = _options.Value;
 
-
-            var secretKey = _configuration["Jwt:Secret"];
-
-            if (string.IsNullOrEmpty(secretKey))
+            if (string.IsNullOrWhiteSpace(options.Secret))
             {
-                throw new ArgumentNullException("Jwt:Secret", "JWT Secret key is missing in configuration!");
+                throw new InvalidOperationException("Jwt:Secret კონფიგურაცია აუცილებელია.");
             }
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            if (options.AccessTokenMinutes <= 0)
+            {
+                throw new InvalidOperationException("Jwt:AccessTokenMinutes უნდა იყოს დადებითი რიცხვი.");
+            }
+
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.UserData, user.FirstName),
+                new Claim(ClaimTypes.Role, user.Role.ToString())
+            };
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Secret));
+            var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            var now = DateTime.UtcNow;
+            var expiresAt = now.AddMinutes(options.AccessTokenMinutes);
 
             var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
+                issuer: options.Issuer,
+                audience: options.Audience,
                 claims: claims,
-                expires: DateTime.UtcNow.AddDays(7),
-                signingCredentials: creds
-            );
+                expires: expiresAt,
+                signingCredentials: credentials);
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            return new AccessTokenResult(
+                new JwtSecurityTokenHandler().WriteToken(token),
+                expiresAt,
+                options.AccessTokenMinutes * 60);
         }
-
-
     }
-
-
+}

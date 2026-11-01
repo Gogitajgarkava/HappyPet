@@ -8,7 +8,8 @@ namespace HappyPet.Application.Dtos.Responises;
 
 public class LoginResponse
 {
-    public string Token { get; set; } = string.Empty;
+    public string AccessToken { get; set; } = string.Empty;
+    public int ExpiresIn { get; set; }
     public string Email { get; set; } = string.Empty;
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;

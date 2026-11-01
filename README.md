@@ -77,7 +77,10 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | POST | `/api/v1/user/add-user` | Register a user and send an email-verification OTP |
-| POST | `/api/v1/auth/login` | Login and receive a JWT |
+| POST | `/api/v1/auth/login` | Login, receive an access token and set the refresh cookie |
+| POST | `/api/v1/auth/refresh` | Rotate the refresh token and issue a new access token |
+| POST | `/api/v1/auth/logout` | Revoke the current refresh token and clear its cookie |
+| POST | `/api/v1/auth/logout-all` | Revoke all refresh tokens for the current user (Bearer token required) |
 | POST | `/api/v1/auth/verify-email` | Verify an email with a 6-digit OTP |
 | POST | `/api/v1/auth/resend-verification` | Resend the email-verification OTP |
 | POST | `/api/v1/auth/forgot-password` | Send a password-reset OTP |
@@ -97,7 +100,7 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | PUT | `/api/v1/pet/{id}/photos/{photoId}/primary` | Set the primary pet photo (owner or admin) |
 | DELETE | `/api/v1/pet/{id}/photos/{photoId}` | Delete a pet photo (owner or admin) |
 
-CORS is enabled for `http://localhost:3000` and `http://localhost:5173` by default. Override with `Cors:AllowedOrigins` in configuration.
+CORS is enabled for `http://localhost:3000` and `http://localhost:5173` by default, with credentials allowed for the refresh cookie. Override with `Cors:AllowedOrigins` in configuration. Frontend requests that use the refresh flow must send `credentials: 'include'`.
 
 ## Email verification and password recovery (OTP)
 
@@ -132,8 +135,37 @@ Configuration:
 | `Email:SmtpUser` / `Email:SmtpPassword` | yes | SMTP credentials |
 | `Otp:HashKey` | yes | Random secret of at least 32 characters used to hash OTPs |
 
-- Use different random values for `Jwt:Secret` and `Otp:HashKey`.
-- Never commit real SMTP or OTP secrets. `appsettings.json` and `appsettings.Development.json` are git-ignored.
+- Use different random values for `Jwt:Secret`, `Jwt:RefreshTokenHashKey` and `Otp:HashKey`.
+- Never commit real SMTP, JWT or OTP secrets. `appsettings.json` and `appsettings.Development.json` are git-ignored.
+
+## JWT and sessions
+
+Access tokens are short-lived JWTs. Refresh tokens are opaque random values stored as HMAC-SHA256 hashes in the `RefreshTokens` table and delivered only in an `HttpOnly` cookie.
+
+| Rule | Value |
+| --- | --- |
+| Access token lifetime | 15 minutes |
+| Refresh token lifetime | 30 days |
+| Refresh token cookie | `happypet_refresh`, `HttpOnly`, `Secure`, `SameSite=Lax`, path `/api/v1/auth` |
+| Rotation | Every refresh revokes the old token and issues a new one |
+| Reuse detection | Reusing an old token outside the 10-second race window revokes the token family |
+| Password reset | Revokes all active refresh tokens for the user |
+| Logout | Revokes the current refresh token |
+| Logout-all | Revokes every active refresh token for the user |
+| Cleanup | A background service deletes expired refresh tokens daily |
+
+Configuration:
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `Jwt:Secret` | yes | JWT signing secret, at least 32 characters |
+| `Jwt:Issuer` | yes | JWT issuer |
+| `Jwt:Audience` | yes | JWT audience |
+| `Jwt:AccessTokenMinutes` | no | Access-token lifetime; default `15` |
+| `Jwt:RefreshTokenDays` | no | Refresh-token lifetime; default `30` |
+| `Jwt:RefreshTokenHashKey` | yes | Random secret of at least 32 characters used to hash refresh tokens |
+
+Login and refresh responses contain `accessToken` and `expiresIn` (seconds), plus the user fields. The refresh token is never returned in the JSON body. Refresh tokens are rotated automatically; clients must use a single-flight refresh to avoid racing multiple refresh requests.
 
 ## Photo storage (AWS S3)
 
@@ -172,7 +204,7 @@ dotnet ef migrations remove -p src/HappyPet.Infrastructure -s src/HappyPet.WebAP
 
 - Connection string: `src/HappyPet.WebAPI/appsettings.json` (`ConnectionStrings:DefaultConnection`, port `5433`).
 - `appsettings.json` and `appsettings.Development.json` are git-ignored. Create them from `appsettings.example.json` and fill in the database password, JWT secret, SMTP credentials and OTP hash key.
-- JWT settings live under `Jwt` (`Secret`, `Issuer`, `Audience`); tokens are valid for 7 days.
+- JWT settings live under `Jwt`: access tokens are valid for 15 minutes and refresh tokens for 30 days by default. See the JWT and sessions section for rotation and revocation behavior.
 - Enums are serialized as strings (e.g. `"role": "User"`, `"species": "Dog"`).
 - The current schema uses integer IDs. A database created with the previous GUID schema must be recreated; there is no in-place GUID-to-integer upgrade migration.
 - For the frontend integration details see `docs/HappyPet-Frontend-Integration-Guide.docx`.
