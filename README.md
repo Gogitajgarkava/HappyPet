@@ -36,12 +36,63 @@ src/
 
 Dependency direction: `Domain <- Application <- Infrastructure <- WebAPI`.
 
-## Getting started
+## Getting started with Docker
 
-1. Start PostgreSQL:
+The repository includes a complete local stack:
+
+- `api` — ASP.NET Core Web API
+- `postgres` — PostgreSQL 16
+- `migrate` — one-time EF Core migration job
+- `mailpit` — local SMTP server and mailbox UI for OTP testing
+- `localstack` — local S3-compatible storage for pet photos
+- `caddy` — HTTPS reverse proxy
+
+1. Create the local environment file and change the secrets if needed:
 
    ```bash
-   docker compose up -d
+   cp .env.example .env
+   ```
+
+2. Build and start the stack:
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+3. Open the services:
+
+   - API / Swagger: `https://localhost:7149/swagger`
+   - Health: `https://localhost:7149/health`
+   - Mailpit: `http://localhost:8025`
+   - Local S3: `http://localhost:4566`
+   - PostgreSQL: `localhost:5434`
+
+LocalStack is used only for local development. Production should use real AWS S3 with CloudFront OAC.
+
+Caddy uses its internal CA for local HTTPS. If the browser does not trust it, import the Caddy root certificate once:
+
+```powershell
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt
+certutil -addstore -User Root caddy-root.crt
+```
+
+> `Secure` refresh cookies require HTTPS. Always use `https://localhost:7149` and not the internal HTTP port.
+
+Useful commands:
+
+```bash
+docker compose ps
+docker compose logs -f api
+docker compose down
+docker compose down -v   # also removes PostgreSQL, LocalStack and Caddy data
+```
+
+## Local development without the full Docker stack
+
+1. Start only PostgreSQL:
+
+   ```bash
+   docker compose up -d postgres
    ```
 
 2. Create the local configuration file from the example and set your own database password and JWT secret:
@@ -49,6 +100,8 @@ Dependency direction: `Domain <- Application <- Infrastructure <- WebAPI`.
    ```bash
    cp appsettings.example.json src/HappyPet.WebAPI/appsettings.json
    ```
+
+   Set the connection string port to `5434` for the Docker PostgreSQL instance.
 
    > `appsettings.json` is git-ignored on purpose. Never commit real credentials.
 

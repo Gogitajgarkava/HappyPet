@@ -16,11 +16,14 @@ using HappyPet.Infrastructure.Securuty;
 using HappyPet.Infrastructure.Storage;
 using HappyPet.WebAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var reverseProxyEnabled = builder.Configuration.GetValue<bool>("ReverseProxy:Enabled");
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -64,6 +67,16 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials()));
+
+if (reverseProxyEnabled)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+}
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 
@@ -129,13 +142,21 @@ builder.Services.AddHostedService<RefreshTokenCleanupService>();
 
 var app = builder.Build();
 
+if (reverseProxyEnabled)
+{
+    app.UseForwardedHeaders();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (!reverseProxyEnabled)
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseCors("Frontend");
 
@@ -143,5 +164,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
 
 app.Run();

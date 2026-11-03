@@ -1,0 +1,5 @@
+https://localhost:7149 {
+	tls internal
+	encode zstd gzip
+	reverse_proxy api:8080
+}
