@@ -24,6 +24,7 @@ src/
     Services/UserServices.cs
     Services/PetService.cs
     Services/AirsService.cs
+    Validators/            # FluentValidation rules for every request DTO
   HappyPet.Infrastructure/  # EF Core, PostgreSQL, security, S3 storage, repositories
     Airs/AirsClient.cs
     Persistence/HappyPetDbContext.cs
@@ -37,6 +38,7 @@ src/
     Controllers/PetController.cs
     Controllers/AirsController.cs
     ErrorHandling/ApiExceptionHandler.cs
+    Filters/FluentValidationActionFilter.cs
     HealthChecks/AirsHealthCheck.cs
     Program.cs
 tests/
@@ -206,6 +208,26 @@ CORS is enabled for `http://localhost:3000` and `http://localhost:5173` by defau
 ```
 
 Out-of-range values are normalized: `page < 1` becomes `1`, and `pageSize` is clamped to `1..100`.
+
+### Request validation
+
+Request DTOs are validated with **FluentValidation**. Validators live in `HappyPet.Application/Validators` and are executed by `FluentValidationActionFilter` before the controller runs. Model-binding failures (malformed JSON, wrong types) use the same envelope.
+
+Validation failures return `400` with `code: "VALIDATION_ERROR"` and a per-field `errors` map:
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "მოთხოვნის მონაცემები არასწორია.",
+  "traceId": "0HN7...",
+  "errors": {
+    "Email": ["არასწორი ელ-ფოსტის ფორმატი."],
+    "Password": ["პაროლი უნდა იყოს მინიმუმ 6 სიმბოლო."]
+  }
+}
+```
+
+Validation messages are localized to Georgian. The DTOs themselves are plain transport models; all rules are kept in the validators.
 
 ### Error format
 

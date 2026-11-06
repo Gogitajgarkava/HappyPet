@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using FluentValidation;
 using HappyPet.Application.Interfaces.Airs;
 using HappyPet.Application.Interfaces.Code;
 using HappyPet.Application.Interfaces.Mail;
@@ -9,6 +10,7 @@ using HappyPet.Application.Interfaces.Services;
 using HappyPet.Application.Interfaces.Storage;
 using HappyPet.Application.Options;
 using HappyPet.Application.Services;
+using HappyPet.Application.Validators;
 using HappyPet.Infrastructure.Airs;
 using HappyPet.Infrastructure.ExentialServices;
 using HappyPet.Infrastructure.Persistence;
@@ -17,6 +19,7 @@ using HappyPet.Infrastructure.Security;
 using HappyPet.Infrastructure.Securuty;
 using HappyPet.Infrastructure.Storage;
 using HappyPet.WebAPI.ErrorHandling;
+using HappyPet.WebAPI.Filters;
 using HappyPet.WebAPI.HealthChecks;
 using HappyPet.WebAPI.Models;
 using HappyPet.WebAPI.Services;
@@ -35,9 +38,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 var reverseProxyEnabled = builder.Configuration.GetValue<bool>("ReverseProxy:Enabled");
 
-builder.Services.AddControllers()
+builder.Services.AddControllers(options =>
+    {
+        options.Filters.Add<FluentValidationActionFilter>();
+    })
     .AddJsonOptions(options =>
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
+builder.Services.AddValidatorsFromAssemblyContaining<CreateUserRequestValidator>();
+builder.Services.AddScoped<FluentValidationActionFilter>();
 
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddProblemDetails();
