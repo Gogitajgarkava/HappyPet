@@ -7,6 +7,7 @@
 ```
 HappyPet.sln
 docker-compose.yml
+airs-mock/                # Development-only mock of the Georgian AIRS registry
 src/
   HappyPet.Domain/          # Entities, value objects, domain logic (no external dependencies)
     Common/BaseEntity.cs
@@ -17,11 +18,14 @@ src/
   HappyPet.Application/     # Use cases, interfaces, DTOs, validation
     Dtos/Requests/
     Dtos/Responises/
+    Dtos/Airs/
     Interfaces/
     Services/AuthService.cs
     Services/UserServices.cs
     Services/PetService.cs
+    Services/AirsService.cs
   HappyPet.Infrastructure/  # EF Core, PostgreSQL, security, S3 storage, repositories
+    Airs/AirsClient.cs
     Persistence/HappyPetDbContext.cs
     Persistence/Repositories/
     Securuty/PasswordHasher.cs
@@ -31,17 +35,92 @@ src/
     Controllers/AuthController.cs
     Controllers/UserControler.cs
     Controllers/PetController.cs
+    Controllers/AirsController.cs
     Program.cs
 ```
 
 Dependency direction: `Domain <- Application <- Infrastructure <- WebAPI`.
 
-## Getting started
+## Getting started with Docker
 
-1. Start PostgreSQL:
+The repository includes a complete local stack:
+
+- `api` — ASP.NET Core Web API
+- `postgres` — PostgreSQL 16
+- `migrate` — one-time EF Core migration job
+- `mailpit` — local SMTP server and mailbox UI for OTP testing
+- `localstack` — local S3-compatible storage for pet photos
+- `caddy` — HTTPS reverse proxy
+
+The AIRS mock runs as a **separate container** in its own Compose project, not as a service of this stack.
+
+1. Create the local environment file and change the secrets if needed:
 
    ```bash
-   docker compose up -d
+   cp .env.example .env
+   ```
+
+2. Start the AIRS mock first (separate container):
+
+   ```bash
+   docker compose -f airs-mock/docker-compose.yml up -d --build
+   ```
+
+3. Build and start the stack:
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+   The API reaches the mock through `host.docker.internal:9100`. If the mock is not running, pet creation and microchip changes fail with `503 AIRS_UNAVAILABLE`; the rest of the API keeps working.
+
+4. Open the services:
+
+   - API / Swagger: `https://localhost:7149/swagger`
+   - Health: `https://localhost:7149/health`
+   - Mailpit: `http://localhost:8025`
+   - Local S3: `http://localhost:4566`
+   - AIRS mock / Swagger: `http://localhost:9100/swagger`
+   - PostgreSQL: `localhost:5434`
+
+The AIRS mock seeds itself on first start and keeps its JSON data in the `happypet-airs_airs-data` volume.
+
+LocalStack is used only for local development. Production should use real AWS S3 with CloudFront OAC.
+
+Caddy uses its internal CA for local HTTPS. If the browser does not trust it, import the Caddy root certificate once:
+
+```powershell
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt
+certutil -addstore -User Root caddy-root.crt
+```
+
+> `Secure` refresh cookies require HTTPS. Always use `https://localhost:7149` and not the internal HTTP port.
+
+Useful commands:
+
+```bash
+docker compose ps
+docker compose logs -f api
+docker compose down
+docker compose down -v   # also removes PostgreSQL, LocalStack and Caddy data
+```
+
+The AIRS mock is managed separately:
+
+```bash
+docker compose -f airs-mock/docker-compose.yml ps
+docker compose -f airs-mock/docker-compose.yml logs -f airs-mock
+docker compose -f airs-mock/docker-compose.yml down
+docker compose -f airs-mock/docker-compose.yml down -v   # also removes mocked AIRS data
+```
+
+## Local development without the full Docker stack
+
+1. Start PostgreSQL and Mailpit, plus the AIRS mock in its own container:
+
+   ```bash
+   docker compose up -d postgres mailpit
+   docker compose -f airs-mock/docker-compose.yml up -d --build
    ```
 
 2. Create the local configuration file from the example and set your own database password and JWT secret:
@@ -49,6 +128,8 @@ Dependency direction: `Domain <- Application <- Infrastructure <- WebAPI`.
    ```bash
    cp appsettings.example.json src/HappyPet.WebAPI/appsettings.json
    ```
+
+   Set the connection string port to `5434` for the Docker PostgreSQL instance. Set `Airs:BaseUrl` to `http://localhost:9100` and `Airs:ApiKey` to the same value as `AIRS_API_KEY` (default `dev-airs-key`).
 
    > `appsettings.json` is git-ignored on purpose. Never commit real credentials.
 
@@ -99,8 +180,38 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | POST | `/api/v1/pet/{id}/photos` | Upload a pet photo, `multipart/form-data`, max 5 MB (owner or admin) |
 | PUT | `/api/v1/pet/{id}/photos/{photoId}/primary` | Set the primary pet photo (owner or admin) |
 | DELETE | `/api/v1/pet/{id}/photos/{photoId}` | Delete a pet photo (owner or admin) |
+| GET | `/api/v1/airs/animals/by-microchip/{microchip}` | AIRS animal and vaccinations by microchip |
+| GET | `/api/v1/airs/vaccinations/{microchip}` | AIRS vaccinations by microchip |
 
 CORS is enabled for `http://localhost:3000` and `http://localhost:5173` by default, with credentials allowed for the refresh cookie. Override with `Cors:AllowedOrigins` in configuration. Frontend requests that use the refresh flow must send `credentials: 'include'`.
+
+## AIRS mock and microchip validation
+
+The `airs-mock` container is a development-only stand-in for the real AIRS API. It runs separately from the main stack and stores data in JSON; it ships with 1,000 animals and about 2,500 vaccinations. See [airs-mock/README.md](airs-mock/README.md) for the mock API and seed values.
+
+Pet creation and microchip changes are validated against AIRS:
+
+- The microchip must exist in AIRS.
+- The AIRS owner personal ID must match the authenticated HappyPet user's personal ID.
+- If the microchip is not found, belongs to another owner, or AIRS is unavailable, the pet is not created or updated.
+- An unchanged microchip is not checked again during update.
+- The local duplicate-microchip check runs before the AIRS call.
+
+| Situation | HTTP | Response code |
+| --- | --- | --- |
+| Microchip not found in AIRS | `400` | `AIRS_MICROCHIP_NOT_FOUND` |
+| Microchip belongs to another owner | `400` | `AIRS_OWNER_MISMATCH` |
+| AIRS unavailable or timed out | `503` | `AIRS_UNAVAILABLE` |
+
+Configuration:
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `Airs__BaseUrl` | `http://host.docker.internal:9100` in Compose | AIRS service URL |
+| `Airs__ApiKey` | `dev-airs-key` | Sent as `X-Api-Key` |
+| `Airs__TimeoutSeconds` | `10` | HTTP timeout |
+
+The mock is not production AIRS. Real AIRS integration remains pending official API access and documentation. See [docs/AIRS-Integration.md](docs/AIRS-Integration.md) for the full contract.
 
 ## Email verification and password recovery (OTP)
 

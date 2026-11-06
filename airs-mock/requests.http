@@ -1,0 +1,73 @@
+### Health
+GET http://localhost:9100/health
+
+### OpenAPI
+GET http://localhost:9100/openapi.json
+
+### Look up a seeded animal by microchip
+GET http://localhost:9100/api/v1/airs/animals/by-microchip/982000000000001
+X-Api-Key: dev-airs-key
+
+### Look up an unknown microchip (expect 404)
+GET http://localhost:9100/api/v1/airs/animals/by-microchip/982999999999999
+X-Api-Key: dev-airs-key
+
+### List animals
+GET http://localhost:9100/api/v1/airs/animals?page=1&pageSize=10
+X-Api-Key: dev-airs-key
+
+### Search by owner personal id
+GET http://localhost:9100/api/v1/airs/animals?ownerPersonalId=01000000001
+X-Api-Key: dev-airs-key
+
+### Register a new animal
+POST http://localhost:9100/api/v1/airs/animals
+X-Api-Key: dev-airs-key
+Content-Type: application/json
+
+{
+  "microchipNumber": "982999999999999",
+  "name": "ლუკა",
+  "species": "Dog",
+  "breed": "Husky",
+  "gender": "Male",
+  "birthDate": "2023-01-20",
+  "color": "თეთრი",
+  "distinguishingMarks": "თეთრი ლაქა მკერდზე",
+  "status": "Active",
+  "owner": {
+    "personalId": "01000000001",
+    "firstName": "გიორგი",
+    "lastName": "ჯღარკავა",
+    "phone": "+995555123456",
+    "email": "owner1@example.com",
+    "address": "თბილისი, ვაჟა-ფშაველას გამზირი 12"
+  },
+  "vaccinations": [
+    {
+      "vaccineName": "Rabies",
+      "disease": "ცოფი",
+      "manufacturer": "MSD Animal Health",
+      "administeredAt": "2026-01-15",
+      "nextDueAt": "2027-01-15",
+      "veterinarianName": "ნინო ბერიძე",
+      "clinicName": "ვეტკლინიკა პეტვეტი"
+    }
+  ]
+}
+
+### Add a vaccination
+POST http://localhost:9100/api/v1/airs/vaccinations
+X-Api-Key: dev-airs-key
+Content-Type: application/json
+
+{
+  "microchipNumber": "982000000000001",
+  "vaccineName": "Rabies",
+  "disease": "ცოფი",
+  "manufacturer": "Zoetis",
+  "administeredAt": "2026-02-01",
+  "nextDueAt": "2027-02-01",
+  "veterinarianName": "გიორგი მაისურაძე",
+  "clinicName": "ვეტკლინიკა ფაუნა"
+}

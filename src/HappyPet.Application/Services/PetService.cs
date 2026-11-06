@@ -27,25 +27,28 @@ namespace HappyPet.Application.Services
         private readonly IPetRepository _petRepository;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IFileStorageService _fileStorage;
+        private readonly IUserRepository _userRepository;
+        private readonly IAirsService _airsService;
 
         public PetService(
             IPetRepository petRepository,
             IUnitOfWork unitOfWork,
-            IFileStorageService fileStorage)
+            IFileStorageService fileStorage,
+            IUserRepository userRepository,
+            IAirsService airsService)
         {
             _petRepository = petRepository;
             _unitOfWork = unitOfWork;
             _fileStorage = fileStorage;
+            _userRepository = userRepository;
+            _airsService = airsService;
         }
 
         public async Task<PetResponse> CreateAsync(int ownerId, CreatePetRequest request, CancellationToken cancellationToken = default)
         {
             var microchipNumber = request.MicrochipNumber.Trim();
 
-            if (await _petRepository.ExistsByMicrochipNumberAsync(microchipNumber, cancellationToken))
-            {
-                throw new InvalidOperationException("მითითებული მიკროჩიპის ნომრით ცხოველი უკვე რეგისტრირებულია.");
-            }
+            await EnsureMicrochipCanBeRegisteredAsync(ownerId, microchipNumber, cancellationToken);
 
             var newPet = new Pet
             {
@@ -96,10 +99,9 @@ namespace HappyPet.Application.Services
 
             var microchipNumber = request.MicrochipNumber.Trim();
 
-            if (pet.MicrochipNumber != microchipNumber &&
-                await _petRepository.ExistsByMicrochipNumberAsync(microchipNumber, cancellationToken))
+            if (!string.Equals(pet.MicrochipNumber, microchipNumber, StringComparison.Ordinal))
             {
-                throw new InvalidOperationException("მითითებული მიკროჩიპის ნომრით ცხოველი უკვე რეგისტრირებულია.");
+                await EnsureMicrochipCanBeRegisteredAsync(pet.OwnerId, microchipNumber, cancellationToken);
             }
 
             pet.Name = request.Name.Trim();
@@ -274,6 +276,34 @@ namespace HappyPet.Application.Services
                     await _unitOfWork.SaveChangesAsync(cancellationToken);
                 }
             }
+        }
+
+        private async Task EnsureMicrochipCanBeRegisteredAsync(
+            int ownerId,
+            string microchipNumber,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(microchipNumber))
+            {
+                return;
+            }
+
+            if (await _petRepository.ExistsByMicrochipNumberAsync(microchipNumber, cancellationToken))
+            {
+                throw new InvalidOperationException("მითითებული მიკროჩიპის ნომრით ცხოველი უკვე რეგისტრირებულია.");
+            }
+
+            var owner = await _userRepository.GetByIdAsync(ownerId, cancellationToken);
+            if (owner == null)
+            {
+                throw new InvalidOperationException(
+                    "მომხმარებელი ვერ მოიძებნა. მიკროჩიპის მფლობელის შემოწმება შეუძლებელია.");
+            }
+
+            await _airsService.EnsureMicrochipBelongsToOwnerAsync(
+                microchipNumber,
+                owner.PersonalId,
+                cancellationToken);
         }
 
         private static DateTime? ToUtcOrNull(DateTime? value)

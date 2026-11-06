@@ -1,4 +1,5 @@
 using HappyPet.Application.Dtos.Requests;
+using HappyPet.Application.Exceptions;
 using HappyPet.Application.Interfaces.Services;
 using HappyPet.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -31,6 +32,22 @@ namespace HappyPet.WebAPI.Controllers
             {
                 var result = await _petService.CreateAsync(CurrentUserId.Value, dto, cancellationToken);
                 return CreatedAtAction(nameof(GetPetById), new { id = result.Id }, result);
+            }
+            catch (AirsAnimalNotFoundException ex)
+            {
+                return BadRequest(new { code = ex.Code, message = ex.Message });
+            }
+            catch (AirsOwnerMismatchException ex)
+            {
+                return BadRequest(new { code = ex.Code, message = ex.Message });
+            }
+            catch (AirsUnavailableException ex)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    code = ex.Code,
+                    message = ex.Message
+                });
             }
             catch (InvalidOperationException ex)
             {
@@ -223,6 +240,22 @@ namespace HappyPet.WebAPI.Controllers
             catch (KeyNotFoundException ex)
             {
                 return NotFound(new { message = ex.Message });
+            }
+            catch (AirsAnimalNotFoundException ex)
+            {
+                return BadRequest(new { code = ex.Code, message = ex.Message });
+            }
+            catch (AirsOwnerMismatchException ex)
+            {
+                return BadRequest(new { code = ex.Code, message = ex.Message });
+            }
+            catch (AirsUnavailableException ex)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    code = ex.Code,
+                    message = ex.Message
+                });
             }
             catch (InvalidOperationException ex)
             {

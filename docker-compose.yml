@@ -1,21 +1,165 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: happypet-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: HappyPetDb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-HappyPetDb}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
-      - "5433:5432"
+      - "${POSTGRES_HOST_PORT:-5434}:5432"
     volumes:
-      - happypet-postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d HappyPetDb"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+  localstack:
+    image: localstack/localstack:4.0
+    restart: unless-stopped
+    environment:
+      SERVICES: s3
+      DEBUG: 0
+      PERSISTENCE: 1
+      AWS_DEFAULT_REGION: ${S3_REGION:-eu-central-1}
+    ports:
+      - "${S3_API_PORT:-4566}:4566"
+    volumes:
+      - localstack-data:/var/lib/localstack
+
+  s3-init:
+    image: localstack/localstack:4.0
+    depends_on:
+      - localstack
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-test}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-test}
+      AWS_DEFAULT_REGION: ${S3_REGION:-eu-central-1}
+      AWS_ENDPOINT_URL: http://localstack:4566
+      S3_BUCKET: ${S3_BUCKET:-happypet}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until aws --endpoint-url "$$AWS_ENDPOINT_URL" s3api list-buckets >/dev/null 2>&1; do
+          echo "Waiting for LocalStack S3..."
+          sleep 2
+        done
+        aws --endpoint-url "$$AWS_ENDPOINT_URL" s3 mb "s3://$$S3_BUCKET" || true
+        aws --endpoint-url "$$AWS_ENDPOINT_URL" s3api put-public-access-block \
+          --bucket "$$S3_BUCKET" \
+          --public-access-block-configuration BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false || true
+        aws --endpoint-url "$$AWS_ENDPOINT_URL" s3api put-bucket-policy \
+          --bucket "$$S3_BUCKET" \
+          --policy "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":\"s3:GetObject\",\"Resource\":\"arn:aws:s3:::$$S3_BUCKET/*\"}]}"
+        echo "S3 bucket ready: $$S3_BUCKET"
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-HappyPetDb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}"
+      Jwt__Secret: ${JWT_SECRET:-dev-only-happypet-jwt-secret-0123456789abcdef}
+      Jwt__RefreshTokenHashKey: ${JWT_REFRESH_TOKEN_HASH_KEY:-dev-only-happypet-refresh-hash-key-0123456789abcdef}
+      Otp__HashKey: ${OTP_HASH_KEY:-dev-only-happypet-otp-hash-key-0123456789abcdef}
+      Airs__BaseUrl: http://host.docker.internal:${AIRS_MOCK_PORT:-9100}
+      Airs__ApiKey: ${AIRS_API_KEY:-dev-airs-key}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        /app/efbundle --connection "$$ConnectionStrings__DefaultConnection"
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      target: final
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+      s3-init:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ReverseProxy__Enabled: "true"
+      Logging__LogLevel__Default: Information
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-HappyPetDb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}"
+
+      Jwt__Secret: ${JWT_SECRET:-dev-only-happypet-jwt-secret-0123456789abcdef}
+      Jwt__Issuer: ${JWT_ISSUER:-HappyPetApi}
+      Jwt__Audience: ${JWT_AUDIENCE:-HappyPetClient}
+      Jwt__AccessTokenMinutes: ${JWT_ACCESS_TOKEN_MINUTES:-15}
+      Jwt__RefreshTokenDays: ${JWT_REFRESH_TOKEN_DAYS:-30}
+      Jwt__RefreshTokenHashKey: ${JWT_REFRESH_TOKEN_HASH_KEY:-dev-only-happypet-refresh-hash-key-0123456789abcdef}
+
+      Otp__HashKey: ${OTP_HASH_KEY:-dev-only-happypet-otp-hash-key-0123456789abcdef}
+
+      Email__SmtpHost: mailpit
+      Email__SmtpPort: 1025
+      Email__EnableSsl: "false"
+      Email__From: ${EMAIL_FROM:-noreply@happypet.local}
+      Email__SmtpUser: ${EMAIL_SMTP_USER:-dev}
+      Email__SmtpPassword: ${EMAIL_SMTP_PASSWORD:-dev}
+
+      Aws__S3__ServiceUrl: http://localstack:4566
+      Aws__S3__BucketName: ${S3_BUCKET:-happypet}
+      Aws__S3__Region: ${S3_REGION:-eu-central-1}
+      Aws__S3__PublicBaseUrl: http://localhost:${S3_API_PORT:-4566}/${S3_BUCKET:-happypet}
+      Aws__S3__AccessKeyId: ${S3_ACCESS_KEY:-test}
+      Aws__S3__SecretAccessKey: ${S3_SECRET_KEY:-test}
+
+      Airs__BaseUrl: http://host.docker.internal:${AIRS_MOCK_PORT:-9100}
+      Airs__ApiKey: ${AIRS_API_KEY:-dev-airs-key}
+      Airs__TimeoutSeconds: ${AIRS_TIMEOUT_SECONDS:-10}
+
+      Cors__AllowedOrigins__0: ${FRONTEND_ORIGIN_HTTP:-http://localhost:5173}
+      Cors__AllowedOrigins__1: ${FRONTEND_ORIGIN_HTTPS:-https://localhost:5173}
+      Cors__AllowedOrigins__2: ${FRONTEND_ORIGIN_ALT:-http://localhost:3000}
+    expose:
+      - "8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${API_HOST_PORT:-7149}:7149"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
 
 volumes:
-  happypet-postgres-data:
+  postgres-data:
+  localstack-data:
+  caddy-data:
+  caddy-config:
