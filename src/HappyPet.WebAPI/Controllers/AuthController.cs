@@ -1,8 +1,10 @@
 ﻿using HappyPet.Application.Dtos.Requests;
 using HappyPet.Application.Exceptions;
 using HappyPet.Application.Interfaces.Services;
+using HappyPet.WebAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 
 namespace HappyPet.WebAPI.Controllers
@@ -24,26 +26,12 @@ namespace HappyPet.WebAPI.Controllers
         }
 
         [HttpPost("login")]
+        [EnableRateLimiting("auth-login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
         {
-            try
-            {
-                var result = await _authService.LoginAsync(request, cancellationToken);
-                SetRefreshTokenCookie(result.RefreshToken, result.RefreshTokenExpiresAt);
-                return Ok(result.Response);
-            }
-            catch (EmailNotVerifiedException ex)
-            {
-                return StatusCode(StatusCodes.Status403Forbidden, new
-                {
-                    code = "EMAIL_NOT_VERIFIED",
-                    message = ex.Message
-                });
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized(new { message = ex.Message });
-            }
+            var result = await _authService.LoginAsync(request, cancellationToken);
+            SetRefreshTokenCookie(result.RefreshToken, result.RefreshTokenExpiresAt);
+            return Ok(result.Response);
         }
 
         [HttpPost("refresh")]
@@ -53,11 +41,9 @@ namespace HappyPet.WebAPI.Controllers
             if (string.IsNullOrWhiteSpace(refreshToken))
             {
                 DeleteRefreshTokenCookie();
-                return Unauthorized(new
-                {
-                    code = "REFRESH_TOKEN_MISSING",
-                    message = "სესია ვადაგასულია. გთხოვთ ხელახლა შეხვიდეთ."
-                });
+                return Unauthorized(Error(
+                    "REFRESH_TOKEN_MISSING",
+                    "სესია ვადაგასულია. გთხოვთ ხელახლა შეხვიდეთ."));
             }
 
             try
@@ -69,20 +55,14 @@ namespace HappyPet.WebAPI.Controllers
             catch (EmailNotVerifiedException ex)
             {
                 DeleteRefreshTokenCookie();
-                return StatusCode(StatusCodes.Status403Forbidden, new
-                {
-                    code = "EMAIL_NOT_VERIFIED",
-                    message = ex.Message
-                });
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    Error("EMAIL_NOT_VERIFIED", ex.Message));
             }
             catch (UnauthorizedAccessException ex)
             {
                 DeleteRefreshTokenCookie();
-                return Unauthorized(new
-                {
-                    code = "REFRESH_TOKEN_INVALID",
-                    message = ex.Message
-                });
+                return Unauthorized(Error("REFRESH_TOKEN_INVALID", ex.Message));
             }
         }
 
@@ -110,20 +90,15 @@ namespace HappyPet.WebAPI.Controllers
         }
 
         [HttpPost("verify-email")]
+        [EnableRateLimiting("auth-otp")]
         public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request, CancellationToken cancellationToken)
         {
-            try
-            {
-                await _userService.VerifyEmailAsync(request, cancellationToken);
-                return Ok(new { message = "ელ-ფოსტა წარმატებით დადასტურდა." });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            await _userService.VerifyEmailAsync(request, cancellationToken);
+            return Ok(new { message = "ელ-ფოსტა წარმატებით დადასტურდა." });
         }
 
         [HttpPost("resend-verification")]
+        [EnableRateLimiting("auth-otp")]
         public async Task<IActionResult> ResendVerification([FromBody] ResendVerificationRequest request, CancellationToken cancellationToken)
         {
             await _userService.ResendVerificationAsync(request, cancellationToken);
@@ -131,6 +106,7 @@ namespace HappyPet.WebAPI.Controllers
         }
 
         [HttpPost("forgot-password")]
+        [EnableRateLimiting("auth-otp")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
         {
             await _userService.ForgotPasswordAsync(request, cancellationToken);
@@ -138,17 +114,21 @@ namespace HappyPet.WebAPI.Controllers
         }
 
         [HttpPost("reset-password")]
+        [EnableRateLimiting("auth-otp")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken cancellationToken)
         {
-            try
+            await _userService.ResetPasswordAsync(request, cancellationToken);
+            return Ok(new { message = "პაროლი წარმატებით განახლდა." });
+        }
+
+        private ApiErrorResponse Error(string code, string message)
+        {
+            return new ApiErrorResponse
             {
-                await _userService.ResetPasswordAsync(request, cancellationToken);
-                return Ok(new { message = "პაროლი წარმატებით განახლდა." });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+                Code = code,
+                Message = message,
+                TraceId = HttpContext.TraceIdentifier
+            };
         }
 
         private void SetRefreshTokenCookie(string token, DateTime expiresAt)

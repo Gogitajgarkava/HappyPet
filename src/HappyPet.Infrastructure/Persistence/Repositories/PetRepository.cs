@@ -40,22 +40,47 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
-        public async Task<List<Pet>> GetByOwnerIdAsync(int ownerId, CancellationToken cancellationToken = default)
+        public async Task<(List<Pet> Items, int TotalCount)> GetByOwnerIdPagedAsync(
+            int ownerId,
+            int skip,
+            int take,
+            CancellationToken cancellationToken = default)
         {
-            return await _context.Pets
+            var query = _context.Pets
+                .AsNoTracking()
+                .Where(p => p.OwnerId == ownerId);
+
+            var totalCount = await query.CountAsync(cancellationToken);
+
+            var items = await query
                 .Include(p => p.Photos)
-                .Where(p => p.OwnerId == ownerId)
                 .OrderByDescending(p => p.CreatedAt)
+                .Skip(skip)
+                .Take(take)
                 .ToListAsync(cancellationToken);
+
+            return (items, totalCount);
         }
 
-        public async Task<List<Pet>> GetLostAsync(CancellationToken cancellationToken = default)
+        public async Task<(List<Pet> Items, int TotalCount)> GetLostPagedAsync(
+            int skip,
+            int take,
+            CancellationToken cancellationToken = default)
         {
-            return await _context.Pets
+            var query = _context.Pets
+                .AsNoTracking()
+                .Where(p => p.IsLost);
+
+            var totalCount = await query.CountAsync(cancellationToken);
+
+            var items = await query
                 .Include(p => p.Photos)
-                .Where(p => p.IsLost)
                 .OrderByDescending(p => p.CreatedAt)
+                .Skip(skip)
+                .Take(take)
                 .ToListAsync(cancellationToken);
+
+            return (items, totalCount);
         }
 
         public async Task<bool> ExistsByMicrochipNumberAsync(string microchipNumber, CancellationToken cancellationToken = default)

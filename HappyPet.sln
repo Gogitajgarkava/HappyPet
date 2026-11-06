@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.11.12306.390 stable
+VisualStudioVersion = 18.11.12306.390
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 	ProjectSection(SolutionItems) = preProject
@@ -15,6 +15,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HappyPet.Infrastructure", "src\HappyPet.Infrastructure\HappyPet.Infrastructure.csproj", "{518BF7C9-EF1D-4452-B6DA-02BCD3E55B61}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HappyPet.WebAPI", "src\HappyPet.WebAPI\HappyPet.WebAPI.csproj", "{4E93E914-6989-420C-B0E4-E4FDAA324431}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HappyPet.Tests", "tests\HappyPet.Tests\HappyPet.Tests.csproj", "{8E98FC30-5CCE-4797-856F-76B1D151CC9B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -74,6 +78,18 @@ Global
 		{4E93E914-6989-420C-B0E4-E4FDAA324431}.Release|x64.Build.0 = Release|Any CPU
 		{4E93E914-6989-420C-B0E4-E4FDAA324431}.Release|x86.ActiveCfg = Release|Any CPU
 		{4E93E914-6989-420C-B0E4-E4FDAA324431}.Release|x86.Build.0 = Release|Any CPU
+		{8E98FC30-5CCE-4797-856F-76B1D151CC9B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8E98FC30-5CCE-4797-856F-76B1D151CC9B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8E98FC30-5CCE-4797-856F-76B1D151CC9B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8E98FC30-5CCE-4797-856F-76B1D151CC9B}.Debug|x64.Build.0 = Debug|Any CPU
+		{8E98FC30-5CCE-4797-856F-76B1D151CC9B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8E98FC30-5CCE-4797-856F-76B1D151CC9B}.Debug|x86.Build.0 = Debug|Any CPU
+		{8E98FC30-5CCE-4797-856F-76B1D151CC9B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8E98FC30-5CCE-4797-856F-76B1D151CC9B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8E98FC30-5CCE-4797-856F-76B1D151CC9B}.Release|x64.ActiveCfg = Release|Any CPU
+		{8E98FC30-5CCE-4797-856F-76B1D151CC9B}.Release|x64.Build.0 = Release|Any CPU
+		{8E98FC30-5CCE-4797-856F-76B1D151CC9B}.Release|x86.ActiveCfg = Release|Any CPU
+		{8E98FC30-5CCE-4797-856F-76B1D151CC9B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -83,5 +99,6 @@ Global
 		{DD04344A-0980-4ACE-88AF-7BDB4233ECBF} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{518BF7C9-EF1D-4452-B6DA-02BCD3E55B61} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{4E93E914-6989-420C-B0E4-E4FDAA324431} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{8E98FC30-5CCE-4797-856F-76B1D151CC9B} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

@@ -5,8 +5,8 @@ namespace HappyPet.Application.Interfaces.Repositories
     public interface IPetRepository
     {
         Task<Pet?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
-        Task<List<Pet>> GetByOwnerIdAsync(int ownerId, CancellationToken cancellationToken = default);
-        Task<List<Pet>> GetLostAsync(CancellationToken cancellationToken = default);
+        Task<(List<Pet> Items, int TotalCount)> GetByOwnerIdPagedAsync(int ownerId, int skip, int take, CancellationToken cancellationToken = default);
+        Task<(List<Pet> Items, int TotalCount)> GetLostPagedAsync(int skip, int take, CancellationToken cancellationToken = default);
 
         Task<bool> ExistsByMicrochipNumberAsync(string microchipNumber, CancellationToken cancellationToken = default);
 

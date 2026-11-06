@@ -36,7 +36,11 @@ src/
     Controllers/UserControler.cs
     Controllers/PetController.cs
     Controllers/AirsController.cs
+    ErrorHandling/ApiExceptionHandler.cs
+    HealthChecks/AirsHealthCheck.cs
     Program.cs
+tests/
+  HappyPet.Tests/            # xUnit unit tests (services, AIRS, error handling)
 ```
 
 Dependency direction: `Domain <- Application <- Infrastructure <- WebAPI`.
@@ -172,8 +176,8 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | DELETE | `/api/v1/user/{id}` | Delete user (owner or admin) |
 | POST | `/api/v1/pet/add-pet` | Add a pet for the current user |
 | GET | `/api/v1/pet/{id}` | Get pet (owner or admin) |
-| GET | `/api/v1/pet/owner/{ownerId}` | List pets by owner |
-| GET | `/api/v1/pet/lost` | List lost pets |
+| GET | `/api/v1/pet/owner/{ownerId}` | List pets by owner (paginated) |
+| GET | `/api/v1/pet/lost` | List lost pets (paginated) |
 | PUT | `/api/v1/pet/{id}` | Update pet (owner or admin) |
 | DELETE | `/api/v1/pet/{id}` | Delete pet (owner or admin) |
 | GET | `/api/v1/pet/{id}/photos` | List pet photos (owner or admin) |
@@ -184,6 +188,114 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | GET | `/api/v1/airs/vaccinations/{microchip}` | AIRS vaccinations by microchip |
 
 CORS is enabled for `http://localhost:3000` and `http://localhost:5173` by default, with credentials allowed for the refresh cookie. Override with `Cors:AllowedOrigins` in configuration. Frontend requests that use the refresh flow must send `credentials: 'include'`.
+
+## API conventions
+
+### Pagination
+
+`GET /api/v1/pet/owner/{ownerId}` and `GET /api/v1/pet/lost` accept `page` (default `1`) and `pageSize` (default `20`, maximum `100`) and return a pagination envelope:
+
+```json
+{
+  "items": [],
+  "page": 1,
+  "pageSize": 20,
+  "totalCount": 42,
+  "totalPages": 3
+}
+```
+
+Out-of-range values are normalized: `page < 1` becomes `1`, and `pageSize` is clamped to `1..100`.
+
+### Error format
+
+Every error response uses the same envelope and never exposes stack traces or exception details:
+
+```json
+{
+  "code": "BUSINESS_RULE_VIOLATION",
+  "message": "მითითებული მიკროჩიპის ნომრით ცხოველი უკვე რეგისტრირებულია.",
+  "traceId": "0HN7..."
+}
+```
+
+Validation errors additionally include a field map:
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "მოთხოვნის მონაცემები არასწორია.",
+  "traceId": "0HN7...",
+  "errors": {
+    "Email": ["არასწორი ელ-ფოსტის ფორმატი."]
+  }
+}
+```
+
+| Code | HTTP | Meaning |
+| --- | --- | --- |
+| `VALIDATION_ERROR` | `400` | Request body or query validation failed |
+| `BUSINESS_RULE_VIOLATION` | `400` | Domain rule rejected the request |
+| `INVALID_ARGUMENT` | `400` | Malformed argument |
+| `AIRS_MICROCHIP_NOT_FOUND` | `400` | Microchip is not registered in AIRS |
+| `AIRS_OWNER_MISMATCH` | `400` | AIRS microchip belongs to another owner |
+| `AIRS_UNAVAILABLE` | `503` | AIRS is unreachable or timed out |
+| `UNAUTHORIZED` | `401` | Invalid credentials |
+| `REFRESH_TOKEN_MISSING` / `REFRESH_TOKEN_INVALID` | `401` | Session expired or revoked |
+| `EMAIL_NOT_VERIFIED` | `403` | Login blocked until the email is verified |
+| `NOT_FOUND` | `404` | Requested resource does not exist |
+| `INTERNAL_ERROR` | `500` | Unexpected server error; details are logged only |
+
+### Health checks
+
+| Endpoint | Purpose |
+| --- | --- |
+| `/health` | All registered checks |
+| `/health/live` | Liveness only; does not touch the database |
+| `/health/ready` | Readiness: PostgreSQL (unhealthy → `503`) and AIRS (degraded → `200`) |
+
+AIRS is treated as an external, optional dependency: when it is down the API stays ready, and only pet microchip validation returns `503 AIRS_UNAVAILABLE`.
+
+## Rate limiting
+
+Authentication endpoints are protected per client IP with fixed-window rate limits:
+
+| Endpoints | Policy | Default |
+| --- | --- | --- |
+| `POST /api/v1/auth/login` | `auth-login` | 10 requests per 5 minutes |
+| `POST /api/v1/auth/verify-email` | `auth-otp` | 10 requests per 10 minutes |
+| `POST /api/v1/auth/resend-verification` | `auth-otp` | 10 requests per 10 minutes |
+| `POST /api/v1/auth/forgot-password` | `auth-otp` | 10 requests per 10 minutes |
+| `POST /api/v1/auth/reset-password` | `auth-otp` | 10 requests per 10 minutes |
+
+When the limit is exceeded the API returns `429` with the standard error envelope and a `Retry-After` header:
+
+```json
+{
+  "code": "RATE_LIMIT_EXCEEDED",
+  "message": "ძალიან ბევრი მოთხოვნა. გთხოვთ სცადოთ ცოტა ხანში.",
+  "traceId": "0HN7..."
+}
+```
+
+Configuration:
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `RateLimiting:LoginPermitLimit` | `10` | Login requests allowed per window |
+| `RateLimiting:LoginWindowMinutes` | `5` | Login window length |
+| `RateLimiting:OtpPermitLimit` | `10` | OTP requests allowed per window |
+| `RateLimiting:OtpWindowMinutes` | `10` | OTP window length |
+
+> Behind Caddy, `ForwardedHeaders` must be enabled (it is when `ReverseProxy:Enabled=true`) so limits are applied to the real client IP rather than the proxy.
+
+### Tests
+
+```bash
+dotnet test
+```
+
+The xUnit suite covers AIRS validation, pet creation/update rules, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
 
 ## AIRS mock and microchip validation
 

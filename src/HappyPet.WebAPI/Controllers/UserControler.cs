@@ -1,6 +1,7 @@
 ﻿using HappyPet.Application.Dtos.Requests;
 using HappyPet.Application.Interfaces.Services;
 using HappyPet.Domain.Enums;
+using HappyPet.WebAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -23,19 +24,8 @@ namespace HappyPet.WebAPI.Controllers
         [HttpPost("add-user")]
         public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest dto, CancellationToken cancellationToken)
         {
-            try
-            {
-                var result = await _userService.RegisterAsync(dto, cancellationToken);
-                return CreatedAtAction(nameof(GetUserById), new { id = result.Id }, result);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "დაფიქსირდა შეცდომა რეგისტრაციისას.", details = ex.Message });
-            }
+            var result = await _userService.RegisterAsync(dto, cancellationToken);
+            return CreatedAtAction(nameof(GetUserById), new { id = result.Id }, result);
         }
 
         [HttpGet("{id:int}")]
@@ -44,7 +34,7 @@ namespace HappyPet.WebAPI.Controllers
             var user = await _userService.GetByIdAsync(id, cancellationToken);
             if (user == null)
             {
-                return NotFound(new { message = "მომხმარებელი ვერ მოიძებნა." });
+                return NotFoundError("მომხმარებელი ვერ მოიძებნა.");
             }
 
             if (!CanAccess(id))
@@ -61,7 +51,7 @@ namespace HappyPet.WebAPI.Controllers
             var user = await _userService.GetByEmailAsync(email, cancellationToken);
             if (user == null)
             {
-                return NotFound(new { message = "მომხმარებელი ვერ მოიძებნა." });
+                return NotFoundError("მომხმარებელი ვერ მოიძებნა.");
             }
 
             if (!CanAccess(user.Id))
@@ -78,7 +68,7 @@ namespace HappyPet.WebAPI.Controllers
             var existing = await _userService.GetByIdAsync(id, cancellationToken);
             if (existing == null)
             {
-                return NotFound(new { message = "მომხმარებელი არ მოიძებნა." });
+                return NotFoundError("მომხმარებელი არ მოიძებნა.");
             }
 
             if (!CanAccess(id))
@@ -86,19 +76,8 @@ namespace HappyPet.WebAPI.Controllers
                 return Forbid();
             }
 
-            try
-            {
-                var result = await _userService.UpdateAsync(id, request, cancellationToken);
-                return Ok(result);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            var result = await _userService.UpdateAsync(id, request, cancellationToken);
+            return Ok(result);
         }
 
         [HttpDelete("{id:int}")]
@@ -107,7 +86,7 @@ namespace HappyPet.WebAPI.Controllers
             var existing = await _userService.GetByIdAsync(id, cancellationToken);
             if (existing == null)
             {
-                return NotFound(new { message = "მომხმარებელი არ მოიძებნა." });
+                return NotFoundError("მომხმარებელი არ მოიძებნა.");
             }
 
             if (!CanAccess(id))
@@ -115,15 +94,18 @@ namespace HappyPet.WebAPI.Controllers
                 return Forbid();
             }
 
-            try
+            await _userService.DeleteAsync(id, cancellationToken);
+            return NoContent();
+        }
+
+        private NotFoundObjectResult NotFoundError(string message)
+        {
+            return NotFound(new ApiErrorResponse
             {
-                await _userService.DeleteAsync(id, cancellationToken);
-                return NoContent();
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
+                Code = "NOT_FOUND",
+                Message = message,
+                TraceId = HttpContext.TraceIdentifier
+            });
         }
 
         private int? CurrentUserId

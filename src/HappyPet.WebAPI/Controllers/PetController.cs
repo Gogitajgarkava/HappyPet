@@ -1,7 +1,7 @@
 using HappyPet.Application.Dtos.Requests;
-using HappyPet.Application.Exceptions;
 using HappyPet.Application.Interfaces.Services;
 using HappyPet.Domain.Enums;
+using HappyPet.WebAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -28,35 +28,8 @@ namespace HappyPet.WebAPI.Controllers
                 return Unauthorized();
             }
 
-            try
-            {
-                var result = await _petService.CreateAsync(CurrentUserId.Value, dto, cancellationToken);
-                return CreatedAtAction(nameof(GetPetById), new { id = result.Id }, result);
-            }
-            catch (AirsAnimalNotFoundException ex)
-            {
-                return BadRequest(new { code = ex.Code, message = ex.Message });
-            }
-            catch (AirsOwnerMismatchException ex)
-            {
-                return BadRequest(new { code = ex.Code, message = ex.Message });
-            }
-            catch (AirsUnavailableException ex)
-            {
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
-                {
-                    code = ex.Code,
-                    message = ex.Message
-                });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "დაფიქსირდა შეცდომა ცხოველის დამატებისას.", details = ex.Message });
-            }
+            var result = await _petService.CreateAsync(CurrentUserId.Value, dto, cancellationToken);
+            return CreatedAtAction(nameof(GetPetById), new { id = result.Id }, result);
         }
 
         [HttpGet("{id:int}")]
@@ -65,7 +38,7 @@ namespace HappyPet.WebAPI.Controllers
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
             {
-                return NotFound(new { message = "ცხოველი ვერ მოიძებნა." });
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
             }
 
             if (!CanAccess(pet.OwnerId))
@@ -77,21 +50,28 @@ namespace HappyPet.WebAPI.Controllers
         }
 
         [HttpGet("owner/{ownerId:int}")]
-        public async Task<IActionResult> GetPetsByOwner(int ownerId, CancellationToken cancellationToken)
+        public async Task<IActionResult> GetPetsByOwner(
+            int ownerId,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20,
+            CancellationToken cancellationToken = default)
         {
             if (!CanAccess(ownerId))
             {
                 return Forbid();
             }
 
-            var pets = await _petService.GetByOwnerIdAsync(ownerId, cancellationToken);
+            var pets = await _petService.GetByOwnerIdAsync(ownerId, page, pageSize, cancellationToken);
             return Ok(pets);
         }
 
         [HttpGet("lost")]
-        public async Task<IActionResult> GetLostPets(CancellationToken cancellationToken)
+        public async Task<IActionResult> GetLostPets(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20,
+            CancellationToken cancellationToken = default)
         {
-            var pets = await _petService.GetLostAsync(cancellationToken);
+            var pets = await _petService.GetLostAsync(page, pageSize, cancellationToken);
             return Ok(pets);
         }
 
@@ -101,7 +81,7 @@ namespace HappyPet.WebAPI.Controllers
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
             {
-                return NotFound(new { message = "ცხოველი ვერ მოიძებნა." });
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
             }
 
             if (!CanAccess(pet.OwnerId))
@@ -121,7 +101,7 @@ namespace HappyPet.WebAPI.Controllers
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
             {
-                return NotFound(new { message = "ცხოველი ვერ მოიძებნა." });
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
             }
 
             if (!CanAccess(pet.OwnerId))
@@ -131,33 +111,18 @@ namespace HappyPet.WebAPI.Controllers
 
             if (file == null || file.Length == 0)
             {
-                return BadRequest(new { message = "სურათი არ არის არჩეული." });
+                return BadRequestError("VALIDATION_ERROR", "სურათი არ არის არჩეული.");
             }
 
-            try
-            {
-                await using var stream = file.OpenReadStream();
-                var result = await _petService.AddPhotoAsync(
-                    id,
-                    stream,
-                    file.Length,
-                    file.ContentType,
-                    cancellationToken);
+            await using var stream = file.OpenReadStream();
+            var result = await _petService.AddPhotoAsync(
+                id,
+                stream,
+                file.Length,
+                file.ContentType,
+                cancellationToken);
 
-                return StatusCode(StatusCodes.Status201Created, result);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "სურათის ატვირთვა ვერ მოხერხდა.", details = ex.Message });
-            }
+            return StatusCode(StatusCodes.Status201Created, result);
         }
 
         [HttpPut("{id:int}/photos/{photoId:int}/primary")]
@@ -166,7 +131,7 @@ namespace HappyPet.WebAPI.Controllers
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
             {
-                return NotFound(new { message = "ცხოველი ვერ მოიძებნა." });
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
             }
 
             if (!CanAccess(pet.OwnerId))
@@ -174,19 +139,8 @@ namespace HappyPet.WebAPI.Controllers
                 return Forbid();
             }
 
-            try
-            {
-                var result = await _petService.SetPrimaryPhotoAsync(id, photoId, cancellationToken);
-                return Ok(result);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "მთავარი სურათის შეცვლა ვერ მოხერხდა.", details = ex.Message });
-            }
+            var result = await _petService.SetPrimaryPhotoAsync(id, photoId, cancellationToken);
+            return Ok(result);
         }
 
         [HttpDelete("{id:int}/photos/{photoId:int}")]
@@ -195,7 +149,7 @@ namespace HappyPet.WebAPI.Controllers
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
             {
-                return NotFound(new { message = "ცხოველი ვერ მოიძებნა." });
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
             }
 
             if (!CanAccess(pet.OwnerId))
@@ -203,19 +157,8 @@ namespace HappyPet.WebAPI.Controllers
                 return Forbid();
             }
 
-            try
-            {
-                await _petService.DeletePhotoAsync(id, photoId, cancellationToken);
-                return NoContent();
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "სურათის წაშლა ვერ მოხერხდა.", details = ex.Message });
-            }
+            await _petService.DeletePhotoAsync(id, photoId, cancellationToken);
+            return NoContent();
         }
 
         [HttpPut("{id:int}")]
@@ -224,7 +167,7 @@ namespace HappyPet.WebAPI.Controllers
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
             {
-                return NotFound(new { message = "ცხოველი ვერ მოიძებნა." });
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
             }
 
             if (!CanAccess(pet.OwnerId))
@@ -232,39 +175,8 @@ namespace HappyPet.WebAPI.Controllers
                 return Forbid();
             }
 
-            try
-            {
-                var result = await _petService.UpdateAsync(id, request, cancellationToken);
-                return Ok(result);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (AirsAnimalNotFoundException ex)
-            {
-                return BadRequest(new { code = ex.Code, message = ex.Message });
-            }
-            catch (AirsOwnerMismatchException ex)
-            {
-                return BadRequest(new { code = ex.Code, message = ex.Message });
-            }
-            catch (AirsUnavailableException ex)
-            {
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
-                {
-                    code = ex.Code,
-                    message = ex.Message
-                });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "დაფიქსირდა შეცდომა ცხოველის განახლებისას.", details = ex.Message });
-            }
+            var result = await _petService.UpdateAsync(id, request, cancellationToken);
+            return Ok(result);
         }
 
         [HttpDelete("{id:int}")]
@@ -273,7 +185,7 @@ namespace HappyPet.WebAPI.Controllers
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
             {
-                return NotFound(new { message = "ცხოველი ვერ მოიძებნა." });
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
             }
 
             if (!CanAccess(pet.OwnerId))
@@ -281,19 +193,28 @@ namespace HappyPet.WebAPI.Controllers
                 return Forbid();
             }
 
-            try
+            await _petService.DeleteAsync(id, cancellationToken);
+            return NoContent();
+        }
+
+        private NotFoundObjectResult NotFoundError(string message)
+        {
+            return NotFound(new ApiErrorResponse
             {
-                await _petService.DeleteAsync(id, cancellationToken);
-                return NoContent();
-            }
-            catch (KeyNotFoundException ex)
+                Code = "NOT_FOUND",
+                Message = message,
+                TraceId = HttpContext.TraceIdentifier
+            });
+        }
+
+        private BadRequestObjectResult BadRequestError(string code, string message)
+        {
+            return BadRequest(new ApiErrorResponse
             {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "დაფიქსირდა შეცდომა ცხოველის წაშლისას.", details = ex.Message });
-            }
+                Code = code,
+                Message = message,
+                TraceId = HttpContext.TraceIdentifier
+            });
         }
 
         private int? CurrentUserId

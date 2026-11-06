@@ -1,5 +1,6 @@
 using HappyPet.Application.Exceptions;
 using HappyPet.Application.Interfaces.Services;
+using HappyPet.WebAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -32,14 +33,11 @@ namespace HappyPet.WebAPI.Controllers
             }
             catch (AirsAnimalNotFoundException ex)
             {
-                return NotFound(new { code = ex.Code, message = ex.Message });
-            }
-            catch (AirsUnavailableException ex)
-            {
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                return NotFound(new ApiErrorResponse
                 {
-                    code = ex.Code,
-                    message = ex.Message
+                    Code = ex.Code,
+                    Message = ex.Message,
+                    TraceId = HttpContext.TraceIdentifier
                 });
             }
         }
@@ -59,14 +57,11 @@ namespace HappyPet.WebAPI.Controllers
             }
             catch (AirsAnimalNotFoundException ex)
             {
-                return NotFound(new { code = ex.Code, message = ex.Message });
-            }
-            catch (AirsUnavailableException ex)
-            {
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                return NotFound(new ApiErrorResponse
                 {
-                    code = ex.Code,
-                    message = ex.Message
+                    Code = ex.Code,
+                    Message = ex.Message,
+                    TraceId = HttpContext.TraceIdentifier
                 });
             }
         }

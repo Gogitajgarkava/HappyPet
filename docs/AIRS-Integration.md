@@ -81,6 +81,8 @@ An empty microchip on create skips AIRS validation. Update requires a microchip.
 
 ## Error responses
 
+All errors use the shared envelope `{ "code", "message", "traceId" }` (see the README API conventions). Unexpected `500` responses never expose internal exception details.
+
 | Situation | HTTP | Code |
 | --- | --- | --- |
 | Microchip not found in AIRS | `400` | `AIRS_MICROCHIP_NOT_FOUND` |

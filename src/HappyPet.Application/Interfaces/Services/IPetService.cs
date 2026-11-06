@@ -7,8 +7,8 @@ namespace HappyPet.Application.Interfaces.Services
     {
         Task<PetResponse> CreateAsync(int ownerId, CreatePetRequest request, CancellationToken cancellationToken = default);
         Task<PetResponse?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
-        Task<List<PetResponse>> GetByOwnerIdAsync(int ownerId, CancellationToken cancellationToken = default);
-        Task<List<PetResponse>> GetLostAsync(CancellationToken cancellationToken = default);
+        Task<PagedResult<PetResponse>> GetByOwnerIdAsync(int ownerId, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
+        Task<PagedResult<PetResponse>> GetLostAsync(int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
         Task<PetResponse> UpdateAsync(int id, UpdatePetRequest request, CancellationToken cancellationToken = default);
         Task DeleteAsync(int id, CancellationToken cancellationToken = default);
 

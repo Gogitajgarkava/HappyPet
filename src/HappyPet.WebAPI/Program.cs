@@ -16,12 +16,20 @@ using HappyPet.Infrastructure.Persistence.Repositories;
 using HappyPet.Infrastructure.Security;
 using HappyPet.Infrastructure.Securuty;
 using HappyPet.Infrastructure.Storage;
+using HappyPet.WebAPI.ErrorHandling;
+using HappyPet.WebAPI.HealthChecks;
+using HappyPet.WebAPI.Models;
 using HappyPet.WebAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +38,33 @@ var reverseProxyEnabled = builder.Configuration.GetValue<bool>("ReverseProxy:Ena
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+builder.Services.AddProblemDetails();
+
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(entry => entry.Value?.Errors.Count > 0)
+            .ToDictionary(
+                entry => entry.Key,
+                entry => entry.Value!.Errors
+                    .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
+                        ? "არასწორი მნიშვნელობა."
+                        : error.ErrorMessage)
+                    .ToArray());
+
+        return new BadRequestObjectResult(new ApiErrorResponse
+        {
+            Code = "VALIDATION_ERROR",
+            Message = "მოთხოვნის მონაცემები არასწორია.",
+            TraceId = context.HttpContext.TraceIdentifier,
+            Errors = errors
+        });
+    };
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -69,6 +104,59 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials()));
+
+var loginPermitLimit = GetPositiveInt("RateLimiting:LoginPermitLimit", 10);
+var loginWindowMinutes = GetPositiveInt("RateLimiting:LoginWindowMinutes", 5);
+var otpPermitLimit = GetPositiveInt("RateLimiting:OtpPermitLimit", 10);
+var otpWindowMinutes = GetPositiveInt("RateLimiting:OtpWindowMinutes", 10);
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        var httpContext = context.HttpContext;
+
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            httpContext.Response.Headers.RetryAfter =
+                Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
+        }
+
+        httpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        httpContext.Response.ContentType = "application/json";
+
+        await httpContext.Response.WriteAsJsonAsync(
+            new ApiErrorResponse
+            {
+                Code = "RATE_LIMIT_EXCEEDED",
+                Message = "ძალიან ბევრი მოთხოვნა. გთხოვთ სცადოთ ცოტა ხანში.",
+                TraceId = httpContext.TraceIdentifier
+            },
+            cancellationToken);
+    };
+
+    options.AddPolicy("auth-login", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            GetClientKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = loginPermitLimit,
+                Window = TimeSpan.FromMinutes(loginWindowMinutes),
+                QueueLimit = 0
+            }));
+
+    options.AddPolicy("auth-otp", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            GetClientKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = otpPermitLimit,
+                Window = TimeSpan.FromMinutes(otpWindowMinutes),
+                QueueLimit = 0
+            }));
+});
 
 if (reverseProxyEnabled)
 {
@@ -159,6 +247,21 @@ builder.Services.AddHttpClient<IAirsClient, AirsClient>(client =>
     }
 });
 builder.Services.AddScoped<IAirsService, AirsService>();
+
+builder.Services.AddHttpClient(AirsHealthCheck.HttpClientName, client =>
+{
+    client.BaseAddress = new Uri(airsBaseUrl, UriKind.Absolute);
+    client.Timeout = TimeSpan.FromSeconds(Math.Min(airsTimeoutSeconds, 5));
+
+    if (!string.IsNullOrWhiteSpace(airsApiKey))
+    {
+        client.DefaultRequestHeaders.Add("X-Api-Key", airsApiKey);
+    }
+});
+
+var healthChecks = builder.Services.AddHealthChecks()
+    .AddDbContextCheck<HappyPetDbContext>("database", tags: new[] { "ready" });
+healthChecks.AddCheck<AirsHealthCheck>("airs", tags: new[] { "ready" });
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenGenerator, TokenGenerator>();
 builder.Services.AddScoped<IRefreshTokenGenerator, RefreshTokenGenerator>();
@@ -175,6 +278,8 @@ if (reverseProxyEnabled)
     app.UseForwardedHeaders();
 }
 
+app.UseExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -188,10 +293,36 @@ if (!reverseProxyEnabled)
 
 app.UseCors("Frontend");
 
+app.UseRateLimiter();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
+
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
 
 app.Run();
+
+int GetPositiveInt(string key, int defaultValue)
+{
+    var value = builder.Configuration.GetValue<int?>(key);
+    return value is > 0 ? value.Value : defaultValue;
+}
+
+static string GetClientKey(HttpContext context)
+{
+    return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+}
+
+public partial class Program
+{
+}

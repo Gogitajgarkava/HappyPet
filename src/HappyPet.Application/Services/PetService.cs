@@ -16,6 +16,8 @@ namespace HappyPet.Application.Services
     {
         private const long MaxPhotoSizeBytes = 5 * 1024 * 1024;
         private const int MaxPhotosPerPet = 10;
+        private const int DefaultPageSize = 20;
+        private const int MaxPageSize = 100;
 
         private static readonly Dictionary<string, string> AllowedImageTypes = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -77,16 +79,34 @@ namespace HappyPet.Application.Services
             return pet == null ? null : MapToResponse(pet);
         }
 
-        public async Task<List<PetResponse>> GetByOwnerIdAsync(int ownerId, CancellationToken cancellationToken = default)
+        public async Task<PagedResult<PetResponse>> GetByOwnerIdAsync(
+            int ownerId,
+            int page = 1,
+            int pageSize = 20,
+            CancellationToken cancellationToken = default)
         {
-            var pets = await _petRepository.GetByOwnerIdAsync(ownerId, cancellationToken);
-            return pets.Select(MapToResponse).ToList();
+            var (validPage, validPageSize) = NormalizePagination(page, pageSize);
+            var (pets, totalCount) = await _petRepository.GetByOwnerIdPagedAsync(
+                ownerId,
+                (validPage - 1) * validPageSize,
+                validPageSize,
+                cancellationToken);
+
+            return ToPagedResult(pets, validPage, validPageSize, totalCount);
         }
 
-        public async Task<List<PetResponse>> GetLostAsync(CancellationToken cancellationToken = default)
+        public async Task<PagedResult<PetResponse>> GetLostAsync(
+            int page = 1,
+            int pageSize = 20,
+            CancellationToken cancellationToken = default)
         {
-            var pets = await _petRepository.GetLostAsync(cancellationToken);
-            return pets.Select(MapToResponse).ToList();
+            var (validPage, validPageSize) = NormalizePagination(page, pageSize);
+            var (pets, totalCount) = await _petRepository.GetLostPagedAsync(
+                (validPage - 1) * validPageSize,
+                validPageSize,
+                cancellationToken);
+
+            return ToPagedResult(pets, validPage, validPageSize, totalCount);
         }
 
         public async Task<PetResponse> UpdateAsync(int id, UpdatePetRequest request, CancellationToken cancellationToken = default)
@@ -304,6 +324,34 @@ namespace HappyPet.Application.Services
                 microchipNumber,
                 owner.PersonalId,
                 cancellationToken);
+        }
+
+        private static (int Page, int PageSize) NormalizePagination(int page, int pageSize)
+        {
+            var validPage = page < 1 ? 1 : page;
+            var validPageSize = pageSize switch
+            {
+                < 1 => DefaultPageSize,
+                > MaxPageSize => MaxPageSize,
+                _ => pageSize
+            };
+
+            return (validPage, validPageSize);
+        }
+
+        private PagedResult<PetResponse> ToPagedResult(
+            List<Pet> pets,
+            int page,
+            int pageSize,
+            int totalCount)
+        {
+            return new PagedResult<PetResponse>
+            {
+                Items = pets.Select(MapToResponse).ToList(),
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount
+            };
         }
 
         private static DateTime? ToUtcOrNull(DateTime? value)
