@@ -165,4 +165,48 @@ public class ValidatorTests
 
         Assert.True(result.IsValid);
     }
+
+    [Fact]
+    public async Task CreateVaccinationRequestValidator_WithInvalidValues_ReturnsErrors()
+    {
+        var validator = new CreateVaccinationRequestValidator();
+        var request = new CreateVaccinationRequest
+        {
+            VaccineName = " ",
+            VaccinatedAt = DateTime.UtcNow.AddDays(1),
+            NextDueAt = DateTime.UtcNow.AddDays(-1),
+            Notes = new string('a', 501)
+        };
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.VaccineName));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.VaccinatedAt));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.NextDueAt));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.Notes));
+    }
+
+    [Fact]
+    public async Task CreateVaccinationRequestValidator_WithValidValues_Passes()
+    {
+        var validator = new CreateVaccinationRequestValidator();
+        var vaccinatedAt = DateTime.UtcNow.AddDays(-10);
+        var request = new CreateVaccinationRequest
+        {
+            VaccineName = "Rabies",
+            Disease = "რაბიესი",
+            Manufacturer = "MSD",
+            BatchNumber = "B-1",
+            VaccinatedAt = vaccinatedAt,
+            NextDueAt = vaccinatedAt.AddYears(1),
+            VeterinarianName = "ექიმი",
+            ClinicName = "კლინიკა",
+            Notes = "კარგად"
+        };
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.True(result.IsValid);
+    }
 }

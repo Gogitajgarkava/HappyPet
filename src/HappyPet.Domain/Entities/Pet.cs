@@ -31,5 +31,6 @@ namespace HappyPet.Domain.Entities
 
         public User Owner { get; set; } = null!;
         public ICollection<PetPhoto> Photos { get; set; } = new List<PetPhoto>();
+        public ICollection<Vaccination> Vaccinations { get; set; } = new List<Vaccination>();
     }
 }

@@ -14,6 +14,7 @@ src/
     Entities/User.cs
     Entities/Pet.cs
     Entities/PetPhoto.cs
+    Entities/Vaccination.cs
     Enums/Enums.cs
   HappyPet.Application/     # Use cases, interfaces, DTOs, validation
     Dtos/Requests/
@@ -23,6 +24,7 @@ src/
     Services/AuthService.cs
     Services/UserServices.cs
     Services/PetService.cs
+    Services/VaccinationService.cs
     Services/AirsService.cs
     Common/GeoDistance.cs  # Haversine distance and bounding box helpers
     Validators/            # FluentValidation rules for every request DTO
@@ -183,6 +185,12 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | GET | `/api/v1/pet/lost` | Public lost-pet search (paginated, optional geo filter) |
 | POST | `/api/v1/pet/{id}/lost` | Mark a pet as lost with last-seen location (owner or admin) |
 | POST | `/api/v1/pet/{id}/found` | Mark a lost pet as found (owner or admin) |
+| GET | `/api/v1/pet/{id}/vaccinations` | List a pet's vaccinations (owner or admin) |
+| POST | `/api/v1/pet/{id}/vaccinations` | Add a vaccination record (owner or admin) |
+| PUT | `/api/v1/pet/{id}/vaccinations/{vaccinationId}` | Update a vaccination record (owner or admin) |
+| DELETE | `/api/v1/pet/{id}/vaccinations/{vaccinationId}` | Delete a vaccination record (owner or admin) |
+| POST | `/api/v1/pet/{id}/vaccinations/import-airs` | Import vaccinations from AIRS by microchip (owner or admin) |
+| GET | `/api/v1/pet/vaccinations/due` | Vaccinations due for the current user's pets |
 | PUT | `/api/v1/pet/{id}` | Update pet (owner or admin) |
 | DELETE | `/api/v1/pet/{id}` | Delete pet (owner or admin) |
 | GET | `/api/v1/pet/{id}/photos` | List pet photos (owner or admin) |
@@ -251,6 +259,31 @@ When `latitude` and `longitude` are supplied, results are limited to pets inside
 ```
 
 Reporting a pet as lost requires `lastSeenAt`, `latitude` and `longitude`; `lastSeenAddress` and `contactPhone` are optional. `contactPhone` is shown publicly as-is, so owners decide what to publish. Calling `/lost` again updates the last-seen details but keeps the original `lostAt`. `/found` clears `isLost`, records `foundAt` and is idempotent.
+
+### Vaccinations
+
+Vaccination records belong to a pet and are managed by its owner (or an admin). Each record stores the vaccine name, disease, manufacturer, batch and certificate numbers, administration date, next due date, veterinarian, clinic and free-form notes.
+
+```json
+{
+  "vaccineName": "Rabies",
+  "disease": "რაბიესი",
+  "manufacturer": "MSD Animal Health",
+  "batchNumber": "BATCH-2026-5401",
+  "certificateNumber": "CERT-2026-000001",
+  "vaccinatedAt": "2026-10-07T00:00:00Z",
+  "nextDueAt": "2027-10-07T00:00:00Z",
+  "veterinarianName": "ექიმი",
+  "clinicName": "კლინიკა",
+  "notes": "გვერდითი ეფექტი არ დაფიქსირდა"
+}
+```
+
+`vaccinatedAt` is required and cannot be in the future. When `nextDueAt` is supplied it must be later than `vaccinatedAt`. Responses include `daysUntilDue` and `isOverdue` so a client can render reminders without extra calculations.
+
+`GET /api/v1/pet/vaccinations/due?daysAhead=30` returns all vaccinations with `nextDueAt` up to the requested horizon for the current user's pets. `daysAhead` defaults to `30` and is clamped to `1..365`; overdue records are always included.
+
+`POST /api/v1/pet/{id}/vaccinations/import-airs` fetches the pet's AIRS record by microchip and imports vaccinations that are not stored yet. Records are deduplicated by AIRS vaccination id, so the endpoint is safe to call repeatedly. The response reports `imported` and `skipped` counts.
 
 ### Request validation
 
@@ -360,7 +393,7 @@ Configuration:
 dotnet test
 ```
 
-The xUnit suite covers AIRS validation, pet creation/update rules, lost/found flows, geo distance, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
+The xUnit suite covers AIRS validation, pet creation/update rules, lost/found flows, vaccination records, geo distance, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
 
 ## AIRS mock and microchip validation
 

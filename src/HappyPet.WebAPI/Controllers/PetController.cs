@@ -14,10 +14,12 @@ namespace HappyPet.WebAPI.Controllers
     public class PetController : ControllerBase
     {
         private readonly IPetService _petService;
+        private readonly IVaccinationService _vaccinationService;
 
-        public PetController(IPetService petService)
+        public PetController(IPetService petService, IVaccinationService vaccinationService)
         {
             _petService = petService;
+            _vaccinationService = vaccinationService;
         }
 
         [HttpPost("add-pet")]
@@ -124,9 +126,126 @@ namespace HappyPet.WebAPI.Controllers
             return Ok(result);
         }
 
-        [HttpGet("{id:int}/photos")]
-        public async Task<IActionResult> GetPetPhotos(int id, CancellationToken cancellationToken)
+        [HttpGet("{id:int}/vaccinations")]
+        public async Task<IActionResult> GetVaccinations(int id, CancellationToken cancellationToken)
         {
+            var pet = await _petService.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (!CanAccess(pet.OwnerId))
+            {
+                return Forbid();
+            }
+
+            var vaccinations = await _vaccinationService.GetByPetIdAsync(id, cancellationToken);
+            return Ok(vaccinations);
+        }
+
+        [HttpPost("{id:int}/vaccinations")]
+        public async Task<IActionResult> AddVaccination(
+            int id,
+            [FromBody] CreateVaccinationRequest request,
+            CancellationToken cancellationToken)
+        {
+            var pet = await _petService.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (!CanAccess(pet.OwnerId))
+            {
+                return Forbid();
+            }
+
+            var result = await _vaccinationService.CreateAsync(id, request, cancellationToken);
+            return StatusCode(StatusCodes.Status201Created, result);
+        }
+
+        [HttpPut("{id:int}/vaccinations/{vaccinationId:int}")]
+        public async Task<IActionResult> UpdateVaccination(
+            int id,
+            int vaccinationId,
+            [FromBody] UpdateVaccinationRequest request,
+            CancellationToken cancellationToken)
+        {
+            var pet = await _petService.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (!CanAccess(pet.OwnerId))
+            {
+                return Forbid();
+            }
+
+            var result = await _vaccinationService.UpdateAsync(id, vaccinationId, request, cancellationToken);
+            return Ok(result);
+        }
+
+        [HttpDelete("{id:int}/vaccinations/{vaccinationId:int}")]
+        public async Task<IActionResult> DeleteVaccination(
+            int id,
+            int vaccinationId,
+            CancellationToken cancellationToken)
+        {
+            var pet = await _petService.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (!CanAccess(pet.OwnerId))
+            {
+                return Forbid();
+            }
+
+            await _vaccinationService.DeleteAsync(id, vaccinationId, cancellationToken);
+            return NoContent();
+        }
+
+        [HttpPost("{id:int}/vaccinations/import-airs")]
+        public async Task<IActionResult> ImportVaccinationsFromAirs(int id, CancellationToken cancellationToken)
+        {
+            var pet = await _petService.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (!CanAccess(pet.OwnerId))
+            {
+                return Forbid();
+            }
+
+            var result = await _vaccinationService.ImportFromAirsAsync(id, cancellationToken);
+            return Ok(result);
+        }
+
+        [HttpGet("vaccinations/due")]
+        public async Task<IActionResult> GetDueVaccinations(
+            [FromQuery] int daysAhead = 30,
+            CancellationToken cancellationToken = default)
+        {
+            if (CurrentUserId == null)
+            {
+                return Unauthorized();
+            }
+
+            var vaccinations = await _vaccinationService.GetDueAsync(
+                CurrentUserId.Value,
+                daysAhead,
+                cancellationToken);
+
+            return Ok(vaccinations);
+        }
+
+        [HttpGet("{id:int}/photos")]
+        public async Task<IActionResult> GetPetPhotos(int id, CancellationToken cancellationToken)        {
             var pet = await _petService.GetByIdAsync(id, cancellationToken);
             if (pet == null)
             {

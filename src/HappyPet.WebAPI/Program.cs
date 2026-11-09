@@ -226,9 +226,11 @@ builder.Services.AddScoped<IOtpHasher, OtpHasher>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IPetRepository, PetRepository>();
+builder.Services.AddScoped<IVaccinationRepository, VaccinationRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IUserServices, UserServices>();
 builder.Services.AddScoped<IPetService, PetService>();
+builder.Services.AddScoped<IVaccinationService, VaccinationService>();
 builder.Services.AddSingleton<IFileStorageService, S3FileStorageService>();
 
 builder.Services.Configure<AirsOptions>(builder.Configuration.GetSection("Airs"));

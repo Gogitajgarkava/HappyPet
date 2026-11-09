@@ -9,6 +9,7 @@ namespace HappyPet.Infrastructure.Persistence
                public DbSet<User> Users => Set<User>();
         public DbSet<Pet> Pets => Set<Pet>();
         public DbSet<PetPhoto> PetPhotos => Set<PetPhoto>();
+        public DbSet<Vaccination> Vaccinations => Set<Vaccination>();
         public DbSet<UserOtpCode> UserOtpCodes => Set<UserOtpCode>();
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
@@ -57,6 +58,27 @@ namespace HappyPet.Infrastructure.Persistence
                       .WithMany(p => p.Photos)
                       .HasForeignKey(p => p.PetId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<Vaccination>(entity =>
+            {
+                entity.HasKey(v => v.Id);
+                entity.Property(v => v.VaccineName).IsRequired().HasMaxLength(100);
+                entity.Property(v => v.Disease).HasMaxLength(100);
+                entity.Property(v => v.Manufacturer).HasMaxLength(100);
+                entity.Property(v => v.BatchNumber).HasMaxLength(50);
+                entity.Property(v => v.CertificateNumber).HasMaxLength(50);
+                entity.Property(v => v.VeterinarianName).HasMaxLength(100);
+                entity.Property(v => v.ClinicName).HasMaxLength(100);
+                entity.Property(v => v.Notes).HasMaxLength(500);
+                entity.Property(v => v.AirsVaccinationId).HasMaxLength(100);
+                entity.HasIndex(v => new { v.PetId, v.VaccinatedAt });
+                entity.HasIndex(v => new { v.PetId, v.AirsVaccinationId }).IsUnique();
+
+                entity.HasOne(v => v.Pet)
+                    .WithMany(p => p.Vaccinations)
+                    .HasForeignKey(v => v.PetId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<UserOtpCode>(entity =>

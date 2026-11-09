@@ -309,6 +309,76 @@ namespace HappyPet.Infrastructure.Migrations
                     b.ToTable("UserOtpCodes");
                 });
 
+            modelBuilder.Entity("HappyPet.Domain.Entities.Vaccination", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AirsVaccinationId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("BatchNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("CertificateNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ClinicName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Disease")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Manufacturer")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("NextDueAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("PetId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("VaccinatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VaccineName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("VeterinarianName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PetId", "AirsVaccinationId")
+                        .IsUnique();
+
+                    b.HasIndex("PetId", "VaccinatedAt");
+
+                    b.ToTable("Vaccinations");
+                });
+
             modelBuilder.Entity("HappyPet.Domain.Entities.Pet", b =>
                 {
                     b.HasOne("HappyPet.Domain.Entities.User", "Owner")
@@ -353,9 +423,22 @@ namespace HappyPet.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("HappyPet.Domain.Entities.Vaccination", b =>
+                {
+                    b.HasOne("HappyPet.Domain.Entities.Pet", "Pet")
+                        .WithMany("Vaccinations")
+                        .HasForeignKey("PetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Pet");
+                });
+
             modelBuilder.Entity("HappyPet.Domain.Entities.Pet", b =>
                 {
                     b.Navigation("Photos");
+
+                    b.Navigation("Vaccinations");
                 });
 
             modelBuilder.Entity("HappyPet.Domain.Entities.User", b =>
