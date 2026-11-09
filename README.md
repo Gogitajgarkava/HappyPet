@@ -24,6 +24,7 @@ src/
     Services/UserServices.cs
     Services/PetService.cs
     Services/AirsService.cs
+    Common/GeoDistance.cs  # Haversine distance and bounding box helpers
     Validators/            # FluentValidation rules for every request DTO
   HappyPet.Infrastructure/  # EF Core, PostgreSQL, security, S3 storage, repositories
     Airs/AirsClient.cs
@@ -157,7 +158,7 @@ docker compose -f airs-mock/docker-compose.yml down -v   # also removes mocked A
 
 ## API
 
-All endpoints are under `/api/v1`. Registration, login, email verification and password recovery are public; every other endpoint requires `Authorization: Bearer <token>`.
+All endpoints are under `/api/v1`. Registration, login, email verification, password recovery and the public lost-pet search are public; every other endpoint requires `Authorization: Bearer <token>`.
 
 Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api/v1/pet/1`, `/api/v1/pet/1/photos/2`.
 
@@ -179,7 +180,9 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | POST | `/api/v1/pet/add-pet` | Add a pet for the current user |
 | GET | `/api/v1/pet/{id}` | Get pet (owner or admin) |
 | GET | `/api/v1/pet/owner/{ownerId}` | List pets by owner (paginated) |
-| GET | `/api/v1/pet/lost` | List lost pets (paginated) |
+| GET | `/api/v1/pet/lost` | Public lost-pet search (paginated, optional geo filter) |
+| POST | `/api/v1/pet/{id}/lost` | Mark a pet as lost with last-seen location (owner or admin) |
+| POST | `/api/v1/pet/{id}/found` | Mark a lost pet as found (owner or admin) |
 | PUT | `/api/v1/pet/{id}` | Update pet (owner or admin) |
 | DELETE | `/api/v1/pet/{id}` | Delete pet (owner or admin) |
 | GET | `/api/v1/pet/{id}/photos` | List pet photos (owner or admin) |
@@ -208,6 +211,46 @@ CORS is enabled for `http://localhost:3000` and `http://localhost:5173` by defau
 ```
 
 Out-of-range values are normalized: `page < 1` becomes `1`, and `pageSize` is clamped to `1..100`.
+
+### Lost-pet search
+
+`GET /api/v1/pet/lost` is public and returns a safe projection of lost pets. It never includes the owner id, owner personal data or the pet's microchip number. Available query parameters:
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `page`, `pageSize` | `1`, `20` | Standard pagination envelope |
+| `latitude`, `longitude` | — | Search origin; must be supplied together |
+| `radiusKm` | `25` | Search radius in kilometres (clamped to `1..100`) |
+
+When `latitude` and `longitude` are supplied, results are limited to pets inside the radius, ordered by distance, and each item includes `distanceKm`. The bounding box is evaluated in SQL and the exact Haversine distance is applied afterwards.
+
+```json
+{
+  "items": [
+    {
+      "id": 7,
+      "name": "შერი",
+      "species": "Dog",
+      "breed": "German Shepherd",
+      "gender": "Female",
+      "color": "თეთრი",
+      "lastSeenAt": "2026-11-09T08:00:00Z",
+      "lastSeenLatitude": 41.7151,
+      "lastSeenLongitude": 44.8271,
+      "lastSeenAddress": "ვაკე, თბილისი",
+      "contactPhone": "+995510000000",
+      "distanceKm": 0.42,
+      "photos": []
+    }
+  ],
+  "page": 1,
+  "pageSize": 20,
+  "totalCount": 1,
+  "totalPages": 1
+}
+```
+
+Reporting a pet as lost requires `lastSeenAt`, `latitude` and `longitude`; `lastSeenAddress` and `contactPhone` are optional. `contactPhone` is shown publicly as-is, so owners decide what to publish. Calling `/lost` again updates the last-seen details but keeps the original `lostAt`. `/found` clears `isLost`, records `foundAt` and is idempotent.
 
 ### Request validation
 
@@ -317,7 +360,7 @@ Configuration:
 dotnet test
 ```
 
-The xUnit suite covers AIRS validation, pet creation/update rules, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
+The xUnit suite covers AIRS validation, pet creation/update rules, lost/found flows, geo distance, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
 
 ## AIRS mock and microchip validation
 

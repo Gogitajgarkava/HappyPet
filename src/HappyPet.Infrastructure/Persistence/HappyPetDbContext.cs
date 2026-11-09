@@ -36,6 +36,9 @@ namespace HappyPet.Infrastructure.Persistence
                 entity.Property(p => p.Name).IsRequired().HasMaxLength(50);
                 entity.Property(p => p.MicrochipNumber).IsRequired().HasMaxLength(15);
                 entity.Property(p => p.Breed).HasMaxLength(50);
+                entity.Property(p => p.LastSeenAddress).HasMaxLength(300);
+                entity.Property(p => p.ContactPhone).HasMaxLength(20);
+                entity.HasIndex(p => new { p.IsLost, p.LostAt });
 
                 entity.HasOne(p => p.Owner)
                       .WithMany(u => u.Pets)

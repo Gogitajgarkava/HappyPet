@@ -67,4 +67,29 @@ namespace HappyPet.Application.Validators
                 .MaximumLength(500).WithMessage("განმასხვავებელი ნიშნები არ უნდა აღემატებოდეს 500 სიმბოლოს.");
         }
     }
+
+    public class ReportLostPetRequestValidator : AbstractValidator<ReportLostPetRequest>
+    {
+        public ReportLostPetRequestValidator()
+        {
+            RuleFor(x => x.LastSeenAt)
+                .NotEmpty().WithMessage("ბოლო ნახვის დრო სავალდებულოა.")
+                .LessThanOrEqualTo(_ => DateTime.UtcNow).WithMessage("ბოლო ნახვის დრო მომავალში არ შეიძლება იყოს.");
+
+            RuleFor(x => x.Latitude)
+                .InclusiveBetween(-90, 90).WithMessage("განედი უნდა იყოს -90-დან 90-მდე.");
+
+            RuleFor(x => x.Longitude)
+                .InclusiveBetween(-180, 180).WithMessage("გრძედი უნდა იყოს -180-დან 180-მდე.");
+
+            RuleFor(x => x.LastSeenAddress)
+                .MaximumLength(300).WithMessage("მისამართი არ უნდა აღემატებოდეს 300 სიმბოლოს.");
+
+            RuleFor(x => x.ContactPhone)
+                .MaximumLength(20).WithMessage("საკონტაქტო ნომერი არ უნდა აღემატებოდეს 20 სიმბოლოს.")
+                .Matches(@"^\+?[0-9\s\-()]{7,20}$")
+                .WithMessage("საკონტაქტო ნომრის ფორმატი არასწორია.")
+                .When(x => !string.IsNullOrWhiteSpace(x.ContactPhone));
+        }
+    }
 }

@@ -40,17 +40,40 @@ namespace HappyPet.Infrastructure.Migrations
                     b.Property<string>("Color")
                         .HasColumnType("text");
 
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DistinguishingMarks")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("FoundAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("Gender")
                         .HasColumnType("integer");
 
                     b.Property<bool>("IsLost")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("LastSeenAddress")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime?>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double?>("LastSeenLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("LastSeenLongitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTime?>("LostAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("MicrochipNumber")
                         .IsRequired()
@@ -77,6 +100,8 @@ namespace HappyPet.Infrastructure.Migrations
                         .IsUnique();
 
                     b.HasIndex("OwnerId");
+
+                    b.HasIndex("IsLost", "LostAt");
 
                     b.ToTable("Pets");
                 });

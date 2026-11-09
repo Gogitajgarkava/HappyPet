@@ -20,6 +20,15 @@ namespace HappyPet.Domain.Entities
         public string? Color { get; set; }
         public string? DistinguishingMarks { get; set; }
         public bool IsLost { get; set; } = false;
+
+        public DateTime? LostAt { get; set; }
+        public DateTime? FoundAt { get; set; }
+        public DateTime? LastSeenAt { get; set; }
+        public double? LastSeenLatitude { get; set; }
+        public double? LastSeenLongitude { get; set; }
+        public string? LastSeenAddress { get; set; }
+        public string? ContactPhone { get; set; }
+
         public User Owner { get; set; } = null!;
         public ICollection<PetPhoto> Photos { get; set; } = new List<PetPhoto>();
     }

@@ -15,6 +15,13 @@ namespace HappyPet.Application.Dtos.Responses
         public string? Color { get; set; }
         public string? DistinguishingMarks { get; set; }
         public bool IsLost { get; set; }
+        public DateTime? LostAt { get; set; }
+        public DateTime? FoundAt { get; set; }
+        public DateTime? LastSeenAt { get; set; }
+        public double? LastSeenLatitude { get; set; }
+        public double? LastSeenLongitude { get; set; }
+        public string? LastSeenAddress { get; set; }
+        public string? ContactPhone { get; set; }
         public DateTime CreatedAt { get; set; }
         public List<PetPhotoResponse> Photos { get; set; } = new();
     }

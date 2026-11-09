@@ -124,4 +124,45 @@ public class ValidatorTests
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.MicrochipNumber));
     }
+
+    [Fact]
+    public async Task ReportLostPetRequestValidator_WithInvalidCoordinates_ReturnsErrors()
+    {
+        var validator = new ReportLostPetRequestValidator();
+        var request = new ReportLostPetRequest
+        {
+            LastSeenAt = DateTime.UtcNow.AddDays(1),
+            Latitude = 95,
+            Longitude = 200,
+            LastSeenAddress = new string('a', 301),
+            ContactPhone = "abc"
+        };
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.LastSeenAt));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.Latitude));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.Longitude));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.LastSeenAddress));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.ContactPhone));
+    }
+
+    [Fact]
+    public async Task ReportLostPetRequestValidator_WithValidValues_Passes()
+    {
+        var validator = new ReportLostPetRequestValidator();
+        var request = new ReportLostPetRequest
+        {
+            LastSeenAt = DateTime.UtcNow.AddHours(-1),
+            Latitude = 41.7151,
+            Longitude = 44.8271,
+            LastSeenAddress = "ვაკე, თბილისი",
+            ContactPhone = "+995510000000"
+        };
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.True(result.IsValid);
+    }
 }

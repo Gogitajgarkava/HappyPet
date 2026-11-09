@@ -209,6 +209,170 @@ public class PetServiceTests
     }
 
     [Fact]
+    public async Task GetLostAsync_WithGeoFilter_ReturnsOnlyPetsInsideRadiusOrderedByDistance()
+    {
+        const double latitude = 41.7151;
+        const double longitude = 44.8271;
+
+        var near = BuildPet();
+        near.Id = 1;
+        near.IsLost = true;
+        near.LastSeenLatitude = latitude;
+        near.LastSeenLongitude = longitude;
+        near.LastSeenAt = DateTime.UtcNow;
+
+        var farther = BuildPet();
+        farther.Id = 2;
+        farther.IsLost = true;
+        farther.LastSeenLatitude = latitude + 0.05;
+        farther.LastSeenLongitude = longitude;
+        farther.LastSeenAt = DateTime.UtcNow;
+
+        var outside = BuildPet();
+        outside.Id = 3;
+        outside.IsLost = true;
+        outside.LastSeenLatitude = latitude + 1;
+        outside.LastSeenLongitude = longitude;
+        outside.LastSeenAt = DateTime.UtcNow;
+
+        _petRepository
+            .Setup(r => r.GetLostWithinBoundingBoxAsync(
+                It.IsAny<double>(),
+                It.IsAny<double>(),
+                It.IsAny<double>(),
+                It.IsAny<double>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Pet> { outside, farther, near });
+
+        var result = await CreateService().GetLostAsync(
+            page: 1,
+            pageSize: 10,
+            latitude: latitude,
+            longitude: longitude,
+            radiusKm: 25);
+
+        Assert.Equal(2, result.TotalCount);
+        Assert.Collection(
+            result.Items,
+            first => Assert.Equal(1, first.Id),
+            second => Assert.Equal(2, second.Id));
+        Assert.All(result.Items, item => Assert.NotNull(item.DistanceKm));
+        Assert.True(result.Items[0].DistanceKm < result.Items[1].DistanceKm);
+    }
+
+    [Fact]
+    public async Task GetLostAsync_WithOnlyLatitude_ThrowsArgumentException()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => CreateService().GetLostAsync(latitude: 41.7));
+    }
+
+    [Fact]
+    public async Task ReportLostAsync_SetsLostStateAndLastSeenDetails()
+    {
+        var pet = BuildPet();
+        _petRepository
+            .Setup(r => r.GetByIdAsync(pet.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pet);
+
+        var lastSeenAt = DateTime.UtcNow.AddHours(-2);
+        var request = new ReportLostPetRequest
+        {
+            LastSeenAt = lastSeenAt,
+            Latitude = 41.7151,
+            Longitude = 44.8271,
+            LastSeenAddress = "  ვაკე, თბილისი  ",
+            ContactPhone = "  +995510000000  "
+        };
+
+        var result = await CreateService().ReportLostAsync(pet.Id, request);
+
+        Assert.True(result.IsLost);
+        Assert.NotNull(pet.LostAt);
+        Assert.Null(pet.FoundAt);
+        Assert.Equal("ვაკე, თბილისი", pet.LastSeenAddress);
+        Assert.Equal("+995510000000", pet.ContactPhone);
+        Assert.Equal(41.7151, pet.LastSeenLatitude);
+        Assert.Equal(44.8271, pet.LastSeenLongitude);
+        Assert.Equal(lastSeenAt, pet.LastSeenAt);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReportLostAsync_WhenAlreadyLost_KeepsOriginalLostAt()
+    {
+        var pet = BuildPet();
+        var originalLostAt = DateTime.UtcNow.AddDays(-1);
+        pet.IsLost = true;
+        pet.LostAt = originalLostAt;
+
+        _petRepository
+            .Setup(r => r.GetByIdAsync(pet.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pet);
+
+        await CreateService().ReportLostAsync(pet.Id, new ReportLostPetRequest
+        {
+            LastSeenAt = DateTime.UtcNow,
+            Latitude = 41.7,
+            Longitude = 44.8
+        });
+
+        Assert.Equal(originalLostAt, pet.LostAt);
+    }
+
+    [Fact]
+    public async Task ReportLostAsync_WhenPetDoesNotExist_ThrowsKeyNotFound()
+    {
+        _petRepository
+            .Setup(r => r.GetByIdAsync(42, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Pet?)null);
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(
+            () => CreateService().ReportLostAsync(42, new ReportLostPetRequest
+            {
+                LastSeenAt = DateTime.UtcNow,
+                Latitude = 41.7,
+                Longitude = 44.8
+            }));
+    }
+
+    [Fact]
+    public async Task ReportFoundAsync_MarksPetAsFound()
+    {
+        var pet = BuildPet();
+        pet.IsLost = true;
+        pet.LostAt = DateTime.UtcNow.AddHours(-5);
+
+        _petRepository
+            .Setup(r => r.GetByIdAsync(pet.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pet);
+
+        var result = await CreateService().ReportFoundAsync(pet.Id);
+
+        Assert.False(result.IsLost);
+        Assert.NotNull(pet.FoundAt);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReportFoundAsync_WhenPetIsNotLost_DoesNotSave()
+    {
+        var pet = BuildPet();
+        pet.IsLost = false;
+        pet.FoundAt = null;
+
+        _petRepository
+            .Setup(r => r.GetByIdAsync(pet.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pet);
+
+        await CreateService().ReportFoundAsync(pet.Id);
+
+        Assert.Null(pet.FoundAt);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task AddPhotoAsync_RejectsUnsupportedContentType()
     {
         var pet = BuildPet();

@@ -75,12 +75,37 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
 
             var items = await query
                 .Include(p => p.Photos)
-                .OrderByDescending(p => p.CreatedAt)
+                .OrderByDescending(p => p.LostAt ?? p.CreatedAt)
                 .Skip(skip)
                 .Take(take)
                 .ToListAsync(cancellationToken);
 
             return (items, totalCount);
+        }
+
+        public async Task<List<Pet>> GetLostWithinBoundingBoxAsync(
+            double minLatitude,
+            double maxLatitude,
+            double minLongitude,
+            double maxLongitude,
+            bool crossesAntimeridian,
+            CancellationToken cancellationToken = default)
+        {
+            var query = _context.Pets
+                .AsNoTracking()
+                .Where(p => p.IsLost
+                            && p.LastSeenLatitude != null
+                            && p.LastSeenLongitude != null
+                            && p.LastSeenLatitude >= minLatitude
+                            && p.LastSeenLatitude <= maxLatitude);
+
+            query = crossesAntimeridian
+                ? query.Where(p => p.LastSeenLongitude >= minLongitude || p.LastSeenLongitude <= maxLongitude)
+                : query.Where(p => p.LastSeenLongitude >= minLongitude && p.LastSeenLongitude <= maxLongitude);
+
+            return await query
+                .Include(p => p.Photos)
+                .ToListAsync(cancellationToken);
         }
 
         public async Task<bool> ExistsByMicrochipNumberAsync(string microchipNumber, CancellationToken cancellationToken = default)

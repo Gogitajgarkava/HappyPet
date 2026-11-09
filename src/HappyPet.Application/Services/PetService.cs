@@ -1,3 +1,4 @@
+using HappyPet.Application.Common;
 using HappyPet.Application.Dtos.Requests;
 using HappyPet.Application.Dtos.Responses;
 using HappyPet.Application.Interfaces.Repositories;
@@ -18,6 +19,8 @@ namespace HappyPet.Application.Services
         private const int MaxPhotosPerPet = 10;
         private const int DefaultPageSize = 20;
         private const int MaxPageSize = 100;
+        private const double DefaultRadiusKm = 25;
+        private const double MaxRadiusKm = 100;
 
         private static readonly Dictionary<string, string> AllowedImageTypes = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -64,6 +67,7 @@ namespace HappyPet.Application.Services
                 Color = request.Color?.Trim(),
                 DistinguishingMarks = request.DistinguishingMarks?.Trim(),
                 IsLost = request.IsLost,
+                LostAt = request.IsLost ? DateTime.UtcNow : null,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -95,18 +99,139 @@ namespace HappyPet.Application.Services
             return ToPagedResult(pets, validPage, validPageSize, totalCount);
         }
 
-        public async Task<PagedResult<PetResponse>> GetLostAsync(
+        public async Task<PagedResult<LostPetResponse>> GetLostAsync(
             int page = 1,
             int pageSize = 20,
+            double? latitude = null,
+            double? longitude = null,
+            double? radiusKm = null,
             CancellationToken cancellationToken = default)
         {
             var (validPage, validPageSize) = NormalizePagination(page, pageSize);
+            var skip = (validPage - 1) * validPageSize;
+
+            if (latitude.HasValue || longitude.HasValue)
+            {
+                if (!latitude.HasValue || !longitude.HasValue)
+                {
+                    throw new ArgumentException("განედი და გრძედი ერთად უნდა იყოს მითითებული.");
+                }
+
+                if (latitude is < -90 or > 90)
+                {
+                    throw new ArgumentException("განედი უნდა იყოს -90-დან 90-მდე.");
+                }
+
+                if (longitude is < -180 or > 180)
+                {
+                    throw new ArgumentException("გრძედი უნდა იყოს -180-დან 180-მდე.");
+                }
+
+                var validRadius = NormalizeRadius(radiusKm);
+                var box = GeoDistance.GetBoundingBox(latitude.Value, longitude.Value, validRadius);
+
+                var candidates = await _petRepository.GetLostWithinBoundingBoxAsync(
+                    box.MinLatitude,
+                    box.MaxLatitude,
+                    box.MinLongitude,
+                    box.MaxLongitude,
+                    box.CrossesAntimeridian,
+                    cancellationToken);
+
+                var matched = candidates
+                    .Where(p => p.LastSeenLatitude.HasValue && p.LastSeenLongitude.HasValue)
+                    .Select(p => new
+                    {
+                        Pet = p,
+                        DistanceKm = GeoDistance.CalculateKm(
+                            latitude.Value,
+                            longitude.Value,
+                            p.LastSeenLatitude!.Value,
+                            p.LastSeenLongitude!.Value)
+                    })
+                    .Where(x => x.DistanceKm <= validRadius)
+                    .OrderBy(x => x.DistanceKm)
+                    .ThenByDescending(x => x.Pet.LostAt ?? x.Pet.CreatedAt)
+                    .ToList();
+
+                var items = matched
+                    .Skip(skip)
+                    .Take(validPageSize)
+                    .Select(x => MapToLostResponse(x.Pet, Math.Round(x.DistanceKm, 2)))
+                    .ToList();
+
+                return new PagedResult<LostPetResponse>
+                {
+                    Items = items,
+                    Page = validPage,
+                    PageSize = validPageSize,
+                    TotalCount = matched.Count
+                };
+            }
+
             var (pets, totalCount) = await _petRepository.GetLostPagedAsync(
-                (validPage - 1) * validPageSize,
+                skip,
                 validPageSize,
                 cancellationToken);
 
-            return ToPagedResult(pets, validPage, validPageSize, totalCount);
+            return new PagedResult<LostPetResponse>
+            {
+                Items = pets.Select(pet => MapToLostResponse(pet, null)).ToList(),
+                Page = validPage,
+                PageSize = validPageSize,
+                TotalCount = totalCount
+            };
+        }
+
+        public async Task<PetResponse> ReportLostAsync(
+            int id,
+            ReportLostPetRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var pet = await _petRepository.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                throw new KeyNotFoundException("ცხოველი ვერ მოიძებნა.");
+            }
+
+            var now = DateTime.UtcNow;
+
+            if (!pet.IsLost)
+            {
+                pet.LostAt = now;
+            }
+
+            pet.IsLost = true;
+            pet.FoundAt = null;
+            pet.LastSeenAt = ToUtc(request.LastSeenAt);
+            pet.LastSeenLatitude = request.Latitude;
+            pet.LastSeenLongitude = request.Longitude;
+            pet.LastSeenAddress = TrimOrNull(request.LastSeenAddress);
+            pet.ContactPhone = TrimOrNull(request.ContactPhone);
+            pet.UpdatedAt = now;
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return MapToResponse(pet);
+        }
+
+        public async Task<PetResponse> ReportFoundAsync(int id, CancellationToken cancellationToken = default)
+        {
+            var pet = await _petRepository.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                throw new KeyNotFoundException("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (pet.IsLost)
+            {
+                pet.IsLost = false;
+                pet.FoundAt = DateTime.UtcNow;
+                pet.UpdatedAt = pet.FoundAt;
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+
+            return MapToResponse(pet);
         }
 
         public async Task<PetResponse> UpdateAsync(int id, UpdatePetRequest request, CancellationToken cancellationToken = default)
@@ -132,8 +257,20 @@ namespace HappyPet.Application.Services
             pet.Gender = request.Gender;
             pet.Color = request.Color?.Trim();
             pet.DistinguishingMarks = request.DistinguishingMarks?.Trim();
+
+            var now = DateTime.UtcNow;
+            if (request.IsLost && !pet.IsLost)
+            {
+                pet.LostAt = now;
+                pet.FoundAt = null;
+            }
+            else if (!request.IsLost && pet.IsLost)
+            {
+                pet.FoundAt = now;
+            }
+
             pet.IsLost = request.IsLost;
-            pet.UpdatedAt = DateTime.UtcNow;
+            pet.UpdatedAt = now;
 
             await _unitOfWork.SaveChangesAsync();
 
@@ -339,6 +476,28 @@ namespace HappyPet.Application.Services
             return (validPage, validPageSize);
         }
 
+        private static double NormalizeRadius(double? radiusKm)
+        {
+            return radiusKm switch
+            {
+                null or <= 0 => DefaultRadiusKm,
+                > MaxRadiusKm => MaxRadiusKm,
+                _ => radiusKm.Value
+            };
+        }
+
+        private static string? TrimOrNull(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        private static DateTime ToUtc(DateTime value)
+        {
+            return value.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(value, DateTimeKind.Utc)
+                : value.ToUniversalTime();
+        }
+
         private PagedResult<PetResponse> ToPagedResult(
             List<Pet> pets,
             int page,
@@ -381,6 +540,13 @@ namespace HappyPet.Application.Services
                 Color = pet.Color,
                 DistinguishingMarks = pet.DistinguishingMarks,
                 IsLost = pet.IsLost,
+                LostAt = pet.LostAt,
+                FoundAt = pet.FoundAt,
+                LastSeenAt = pet.LastSeenAt,
+                LastSeenLatitude = pet.LastSeenLatitude,
+                LastSeenLongitude = pet.LastSeenLongitude,
+                LastSeenAddress = pet.LastSeenAddress,
+                ContactPhone = pet.ContactPhone,
                 CreatedAt = pet.CreatedAt,
                 Photos = pet.Photos
                     .OrderByDescending(p => p.IsPrimary)
@@ -399,6 +565,33 @@ namespace HappyPet.Application.Services
                 Url = _fileStorage.GetUrl(photo.Key),
                 IsPrimary = photo.IsPrimary,
                 CreatedAt = photo.CreatedAt
+            };
+        }
+
+        private LostPetResponse MapToLostResponse(Pet pet, double? distanceKm)
+        {
+            return new LostPetResponse
+            {
+                Id = pet.Id,
+                Name = pet.Name,
+                Species = pet.Species,
+                Breed = pet.Breed,
+                Gender = pet.Gender,
+                Color = pet.Color,
+                DistinguishingMarks = pet.DistinguishingMarks,
+                LostAt = pet.LostAt,
+                LastSeenAt = pet.LastSeenAt,
+                LastSeenLatitude = pet.LastSeenLatitude,
+                LastSeenLongitude = pet.LastSeenLongitude,
+                LastSeenAddress = pet.LastSeenAddress,
+                ContactPhone = pet.ContactPhone,
+                DistanceKm = distanceKm,
+                CreatedAt = pet.CreatedAt,
+                Photos = pet.Photos
+                    .OrderByDescending(p => p.IsPrimary)
+                    .ThenBy(p => p.CreatedAt)
+                    .Select(MapPhoto)
+                    .ToList()
             };
         }
     }

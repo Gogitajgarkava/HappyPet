@@ -7,6 +7,13 @@ namespace HappyPet.Application.Interfaces.Repositories
         Task<Pet?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
         Task<(List<Pet> Items, int TotalCount)> GetByOwnerIdPagedAsync(int ownerId, int skip, int take, CancellationToken cancellationToken = default);
         Task<(List<Pet> Items, int TotalCount)> GetLostPagedAsync(int skip, int take, CancellationToken cancellationToken = default);
+        Task<List<Pet>> GetLostWithinBoundingBoxAsync(
+            double minLatitude,
+            double maxLatitude,
+            double minLongitude,
+            double maxLongitude,
+            bool crossesAntimeridian,
+            CancellationToken cancellationToken = default);
 
         Task<bool> ExistsByMicrochipNumberAsync(string microchipNumber, CancellationToken cancellationToken = default);
 

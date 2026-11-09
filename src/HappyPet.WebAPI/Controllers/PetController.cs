@@ -65,14 +65,63 @@ namespace HappyPet.WebAPI.Controllers
             return Ok(pets);
         }
 
+        [AllowAnonymous]
         [HttpGet("lost")]
         public async Task<IActionResult> GetLostPets(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20,
+            [FromQuery] double? latitude = null,
+            [FromQuery] double? longitude = null,
+            [FromQuery] double? radiusKm = null,
             CancellationToken cancellationToken = default)
         {
-            var pets = await _petService.GetLostAsync(page, pageSize, cancellationToken);
+            var pets = await _petService.GetLostAsync(
+                page,
+                pageSize,
+                latitude,
+                longitude,
+                radiusKm,
+                cancellationToken);
             return Ok(pets);
+        }
+
+        [HttpPost("{id:int}/lost")]
+        public async Task<IActionResult> ReportLostPet(
+            int id,
+            [FromBody] ReportLostPetRequest request,
+            CancellationToken cancellationToken)
+        {
+            var pet = await _petService.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (!CanAccess(pet.OwnerId))
+            {
+                return Forbid();
+            }
+
+            var result = await _petService.ReportLostAsync(id, request, cancellationToken);
+            return Ok(result);
+        }
+
+        [HttpPost("{id:int}/found")]
+        public async Task<IActionResult> ReportFoundPet(int id, CancellationToken cancellationToken)
+        {
+            var pet = await _petService.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (!CanAccess(pet.OwnerId))
+            {
+                return Forbid();
+            }
+
+            var result = await _petService.ReportFoundAsync(id, cancellationToken);
+            return Ok(result);
         }
 
         [HttpGet("{id:int}/photos")]
