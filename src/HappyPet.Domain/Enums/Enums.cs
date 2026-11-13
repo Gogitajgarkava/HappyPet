@@ -43,6 +43,34 @@ namespace HappyPet.Domain.Enums
         Mandatory = 2
     }
 
+    public enum ListingType
+    {
+        Sale = 1,
+        Giveaway = 2
+    }
+
+    public enum ListingStatus
+    {
+        Active = 1,
+        Completed = 2,
+        Expired = 3,
+        Blocked = 4,
+        Withdrawn = 5
+    }
+
+    public enum OwnershipTransferType
+    {
+        Sale = 1,
+        Gift = 2
+    }
+
+    public enum OwnershipTransferStatus
+    {
+        PendingAirsSync = 1,
+        Synced = 2,
+        Rejected = 3
+    }
+
     public enum OtpPurpose
     {
         EmailVerification = 1,

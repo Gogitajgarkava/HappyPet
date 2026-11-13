@@ -15,6 +15,9 @@ src/
     Entities/Pet.cs
     Entities/PetPhoto.cs
     Entities/Vaccination.cs
+    Entities/MarketplaceListing.cs
+    Entities/MarketplaceListingPhoto.cs
+    Entities/OwnershipTransfer.cs
     Enums/Enums.cs
   HappyPet.Application/     # Use cases, interfaces, DTOs, validation
     Dtos/Requests/
@@ -25,6 +28,7 @@ src/
     Services/UserServices.cs
     Services/PetService.cs
     Services/VaccinationService.cs
+    Services/MarketplaceService.cs
     Services/AirsService.cs
     Common/GeoDistance.cs  # Haversine distance and bounding box helpers
     Validators/            # FluentValidation rules for every request DTO
@@ -39,6 +43,7 @@ src/
     Controllers/AuthController.cs
     Controllers/UserControler.cs
     Controllers/PetController.cs
+    Controllers/MarketplaceController.cs
     Controllers/AirsController.cs
     ErrorHandling/ApiExceptionHandler.cs
     Filters/FluentValidationActionFilter.cs
@@ -160,7 +165,7 @@ docker compose -f airs-mock/docker-compose.yml down -v   # also removes mocked A
 
 ## API
 
-All endpoints are under `/api/v1`. Registration, login, email verification, password recovery and the public lost-pet search are public; every other endpoint requires `Authorization: Bearer <token>`.
+All endpoints are under `/api/v1`. Registration, login, email verification, password recovery, the public lost-pet search and public marketplace listings are public; every other endpoint requires `Authorization: Bearer <token>`.
 
 Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api/v1/pet/1`, `/api/v1/pet/1/photos/2`.
 
@@ -198,6 +203,19 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | POST | `/api/v1/pet/{id}/photos` | Upload a pet photo, `multipart/form-data`, max 5 MB (owner or admin) |
 | PUT | `/api/v1/pet/{id}/photos/{photoId}/primary` | Set the primary pet photo (owner or admin) |
 | DELETE | `/api/v1/pet/{id}/photos/{photoId}` | Delete a pet photo (owner or admin) |
+| POST | `/api/v1/marketplace/listings` | Publish a pet sale or giveaway listing |
+| GET | `/api/v1/marketplace/listings` | Public marketplace search (paginated) |
+| GET | `/api/v1/marketplace/listings/{id}` | Public listing details |
+| GET | `/api/v1/marketplace/my` | List the current user's listings (paginated) |
+| PUT | `/api/v1/marketplace/listings/{id}` | Update an active listing (owner or admin) |
+| DELETE | `/api/v1/marketplace/listings/{id}` | Withdraw an active listing (owner or admin) |
+| POST | `/api/v1/marketplace/listings/{id}/complete` | Complete a sale/giveaway and create a pending AIRS transfer (owner or admin) |
+| POST | `/api/v1/marketplace/listings/{id}/block` | Block a listing with a reason (admin only) |
+| POST | `/api/v1/marketplace/listings/{id}/unblock` | Restore a blocked listing (admin only) |
+| GET | `/api/v1/marketplace/listings/{id}/photos` | Public listing photos |
+| POST | `/api/v1/marketplace/listings/{id}/photos` | Upload a listing photo, `multipart/form-data`, max 5 MB (owner or admin) |
+| PUT | `/api/v1/marketplace/listings/{id}/photos/{photoId}/primary` | Set the primary listing photo (owner or admin) |
+| DELETE | `/api/v1/marketplace/listings/{id}/photos/{photoId}` | Delete a listing photo (owner or admin) |
 | GET | `/api/v1/airs/animals/by-microchip/{microchip}` | AIRS animal and vaccinations by microchip |
 | GET | `/api/v1/airs/vaccinations/{microchip}` | AIRS vaccinations by microchip |
 
@@ -302,6 +320,59 @@ New vaccinations are rejected when the pet is deceased or when the previous vacc
 `GET /api/v1/pet/vaccinations/due?daysAhead=30` returns all vaccinations with `nextDueAt` up to the requested horizon for the current user's pets. `daysAhead` defaults to `30` and is clamped to `1..365`; overdue records are always included.
 
 `POST /api/v1/pet/{id}/vaccinations/import-airs` fetches the pet's AIRS record by microchip and imports vaccinations that are not stored yet. Records are deduplicated by AIRS vaccination id, so the endpoint is safe to call repeatedly. The response reports `imported` and `skipped` counts.
+
+### Marketplace
+
+The marketplace supports paid sales and free giveaways of dogs, cats and other pets. A listing is standalone and does **not** require a registered pet; this is intentional so newborn puppies and kittens without a microchip can be listed. A seller may optionally link an existing pet with `petId`; the pet must belong to the seller, must be alive and must not already have an active listing.
+
+```json
+{
+  "petId": null,
+  "petName": "შერი",
+  "species": "Dog",
+  "breed": "ლაბრადორი",
+  "gender": "Female",
+  "birthDate": "2026-09-01T00:00:00Z",
+  "color": "კრემისფერი",
+  "size": "Medium",
+  "isSterilized": false,
+  "isVaccinated": true,
+  "microchipNumber": null,
+  "listingType": "Sale",
+  "price": 800,
+  "city": "თბილისი",
+  "contactPhone": "+995555000000",
+  "description": "მეგობრული ლეკვი"
+}
+```
+
+Business rules:
+
+- `listingType` is `Sale` or `Giveaway`. Prices are always in GEL; the response contains `"currency": "GEL"`.
+- A `Sale` requires a price greater than `0` and no more than `1 000 000`. A `Giveaway` accepts `null` or `0`; any other price is rejected.
+- `birthDate` is required and the pet must be at least **8 weeks** old at publication time.
+- `microchipNumber` is optional. When supplied it must contain exactly 15 digits. When a registered pet is linked and has a microchip, the listing copies it automatically; a conflicting value is rejected.
+- The listing is published immediately with `Status = Active` and expires automatically after **30 days**. Expired listings are hidden from public search and detail endpoints; a background service marks them `Expired`.
+- `contactPhone` is public by design so buyers can contact the seller directly.
+- Up to 5 photos can be attached, each up to 5 MB, in JPEG, PNG or WebP format. The first uploaded photo becomes primary.
+- Admins can block a listing with `POST /api/v1/marketplace/listings/{id}/block`; blocked listings are hidden from the public. An admin can unblock a listing before it expires.
+
+`GET /api/v1/marketplace/listings` is public and supports `page`, `pageSize`, `species`, `listingType`, `city`, `minPrice`, `maxPrice` and `search`. Only active, non-expired listings are returned.
+
+Completing a listing:
+
+```json
+{
+  "buyerUserId": 12,
+  "buyerFullName": "ნინო ბერიძე",
+  "buyerPersonalId": "01000000002",
+  "buyerPhone": "+995555111111",
+  "transferredAt": null,
+  "notes": "შეხვედრა კლინიკაში"
+}
+```
+
+`POST /api/v1/marketplace/listings/{id}/complete` is available to the seller or an admin. It marks the listing `Completed` and creates a local `OwnershipTransfer` with `Status = PendingAirsSync`. For a linked pet it records the pet id and microchip; for a standalone newborn listing the transfer still records the seller, buyer, type and price. The actual AIRS ownership change is performed later by an operator or clinic, so the local pet owner is **not** changed automatically by this endpoint.
 
 ### Request validation
 
@@ -411,7 +482,7 @@ Configuration:
 dotnet test
 ```
 
-The xUnit suite covers AIRS validation, pet creation/update rules, lost/found flows, vaccination records, geo distance, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
+The xUnit suite covers AIRS validation, pet creation/update rules, lost/found flows, vaccination records, marketplace listing rules and ownership transfers, geo distance, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
 
 ## AIRS mock and microchip validation
 

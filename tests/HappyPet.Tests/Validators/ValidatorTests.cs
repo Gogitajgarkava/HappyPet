@@ -280,4 +280,80 @@ public class ValidatorTests
         Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.DeceasedAt));
         Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.DeathCause));
     }
+
+    [Fact]
+    public async Task CreateMarketplaceListingRequestValidator_WithInvalidValues_ReturnsErrors()
+    {
+        var validator = new CreateMarketplaceListingRequestValidator();
+        var request = new CreateMarketplaceListingRequest
+        {
+            PetName = " ",
+            Species = PetSpecies.Dog,
+            Gender = PetGender.Female,
+            BirthDate = DateTime.UtcNow.Date.AddDays(-30),
+            MicrochipNumber = "123",
+            ListingType = ListingType.Sale,
+            Price = null,
+            City = string.Empty,
+            ContactPhone = "abc",
+            Description = new string('a', 2001)
+        };
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.PetName));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.BirthDate));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.MicrochipNumber));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.Price));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.City));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.ContactPhone));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.Description));
+    }
+
+    [Fact]
+    public async Task CreateMarketplaceListingRequestValidator_WithGiveawayPrice_ReturnsError()
+    {
+        var validator = new CreateMarketplaceListingRequestValidator();
+        var request = new CreateMarketplaceListingRequest
+        {
+            PetName = "შერი",
+            Species = PetSpecies.Dog,
+            Gender = PetGender.Female,
+            BirthDate = DateTime.UtcNow.Date.AddDays(-70),
+            ListingType = ListingType.Giveaway,
+            Price = 100,
+            City = "თბილისი",
+            ContactPhone = "+995555000000"
+        };
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.Price));
+    }
+
+    [Fact]
+    public async Task CreateMarketplaceListingRequestValidator_WithValidSale_Passes()
+    {
+        var validator = new CreateMarketplaceListingRequestValidator();
+        var request = new CreateMarketplaceListingRequest
+        {
+            PetName = "შერი",
+            Species = PetSpecies.Dog,
+            Breed = "ლაბრადორი",
+            Gender = PetGender.Female,
+            BirthDate = DateTime.UtcNow.Date.AddDays(-70),
+            MicrochipNumber = "982000000000001",
+            ListingType = ListingType.Sale,
+            Price = 150,
+            City = "თბილისი",
+            ContactPhone = "+995555000000",
+            Description = "მეგობრული ლეკვი"
+        };
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.True(result.IsValid);
+    }
 }

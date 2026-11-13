@@ -12,6 +12,9 @@ namespace HappyPet.Infrastructure.Persistence
         public DbSet<Vaccination> Vaccinations => Set<Vaccination>();
         public DbSet<UserOtpCode> UserOtpCodes => Set<UserOtpCode>();
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+        public DbSet<MarketplaceListing> MarketplaceListings => Set<MarketplaceListing>();
+        public DbSet<MarketplaceListingPhoto> MarketplaceListingPhotos => Set<MarketplaceListingPhoto>();
+        public DbSet<OwnershipTransfer> OwnershipTransfers => Set<OwnershipTransfer>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -116,6 +119,66 @@ namespace HappyPet.Infrastructure.Persistence
                 entity.HasOne(t => t.User)
                     .WithMany(u => u.RefreshTokens)
                     .HasForeignKey(t => t.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<MarketplaceListing>(entity =>
+            {
+                entity.HasKey(l => l.Id);
+                entity.HasIndex(l => new { l.Status, l.ExpiresAt });
+                entity.HasIndex(l => new { l.Species, l.ListingType });
+                entity.HasIndex(l => l.SellerId);
+                entity.HasIndex(l => l.City);
+                entity.Property(l => l.PetName).IsRequired().HasMaxLength(50);
+                entity.Property(l => l.Breed).HasMaxLength(50);
+                entity.Property(l => l.Color).HasMaxLength(50);
+                entity.Property(l => l.MicrochipNumber).HasMaxLength(15);
+                entity.Property(l => l.City).IsRequired().HasMaxLength(100);
+                entity.Property(l => l.ContactPhone).IsRequired().HasMaxLength(20);
+                entity.Property(l => l.Description).HasMaxLength(2000);
+                entity.Property(l => l.BlockReason).HasMaxLength(500);
+                entity.Property(l => l.Price).HasPrecision(18, 2);
+
+                entity.HasOne(l => l.Seller)
+                    .WithMany()
+                    .HasForeignKey(l => l.SellerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(l => l.Pet)
+                    .WithMany()
+                    .HasForeignKey(l => l.PetId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<MarketplaceListingPhoto>(entity =>
+            {
+                entity.HasKey(p => p.Id);
+                entity.HasIndex(p => p.ListingId);
+                entity.Property(p => p.Key).IsRequired().HasMaxLength(500);
+                entity.Property(p => p.ContentType).IsRequired().HasMaxLength(100);
+
+                entity.HasOne(p => p.Listing)
+                    .WithMany(l => l.Photos)
+                    .HasForeignKey(p => p.ListingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<OwnershipTransfer>(entity =>
+            {
+                entity.HasKey(t => t.Id);
+                entity.HasIndex(t => t.ListingId).IsUnique();
+                entity.HasIndex(t => new { t.Status, t.TransferredAt });
+                entity.Property(t => t.MicrochipNumber).HasMaxLength(15);
+                entity.Property(t => t.BuyerFullName).IsRequired().HasMaxLength(100);
+                entity.Property(t => t.BuyerPersonalId).IsRequired().HasMaxLength(11);
+                entity.Property(t => t.BuyerPhone).HasMaxLength(20);
+                entity.Property(t => t.AirsReference).HasMaxLength(100);
+                entity.Property(t => t.Notes).HasMaxLength(500);
+                entity.Property(t => t.Price).HasPrecision(18, 2);
+
+                entity.HasOne(t => t.Listing)
+                    .WithOne(l => l.OwnershipTransfer)
+                    .HasForeignKey<OwnershipTransfer>(t => t.ListingId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
         }
