@@ -21,6 +21,9 @@ public class VaccinationServiceTests
         _unitOfWork
             .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
+        _vaccinationRepository
+            .Setup(r => r.GetByPetIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Vaccination>());
     }
 
     private VaccinationService CreateService() => new(
@@ -222,6 +225,160 @@ public class VaccinationServiceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => CreateService().ImportFromAirsAsync(7));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithImmunityYears_ComputesNextDueAt()
+    {
+        _petRepository
+            .Setup(r => r.GetByIdAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildPet());
+        var vaccinatedAt = DateTime.UtcNow.AddDays(-10);
+
+        var result = await CreateService().CreateAsync(7, new CreateVaccinationRequest
+        {
+            VaccineName = "Rabies",
+            VaccinatedAt = vaccinatedAt,
+            ImmunityYears = 1,
+            VaccinationType = HappyPet.Domain.Enums.VaccinationType.Mandatory,
+            ManufacturerCountry = "საფრანგეთი"
+        });
+
+        Assert.Equal(vaccinatedAt.AddYears(1).AddMonths(-1), result.NextDueAt);
+        Assert.Equal(1, result.ImmunityYears);
+        Assert.Equal(HappyPet.Domain.Enums.VaccinationType.Mandatory, result.VaccinationType);
+        Assert.Equal("საფრანგეთი", result.ManufacturerCountry);
+        Assert.False(result.IsNextDueOverridden);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithNextDueOverride_WhenNotAllowed_Throws()
+    {
+        _petRepository
+            .Setup(r => r.GetByIdAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildPet());
+        var vaccinatedAt = DateTime.UtcNow.AddDays(-10);
+        var computed = vaccinatedAt.AddYears(1).AddMonths(-1);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => CreateService().CreateAsync(7, new CreateVaccinationRequest
+        {
+            VaccineName = "Rabies",
+            VaccinatedAt = vaccinatedAt,
+            ImmunityYears = 1,
+            NextDueAt = computed.AddDays(7),
+            OverrideNextDueDate = true
+        }));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithNextDueOverride_WhenAllowed_MarksOverride()
+    {
+        _petRepository
+            .Setup(r => r.GetByIdAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildPet());
+        var vaccinatedAt = DateTime.UtcNow.AddDays(-10);
+        var overridden = vaccinatedAt.AddYears(1).AddMonths(-1).AddDays(7);
+
+        var result = await CreateService().CreateAsync(7, new CreateVaccinationRequest
+        {
+            VaccineName = "Rabies",
+            VaccinatedAt = vaccinatedAt,
+            ImmunityYears = 1,
+            NextDueAt = overridden,
+            OverrideNextDueDate = true
+        }, allowNextDueOverride: true);
+
+        Assert.Equal(overridden, result.NextDueAt);
+        Assert.True(result.IsNextDueOverridden);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenVaccinationIsOlderThanOneYear_Throws()
+    {
+        _petRepository
+            .Setup(r => r.GetByIdAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildPet());
+
+        await Assert.ThrowsAsync<ArgumentException>(() => CreateService().CreateAsync(7, new CreateVaccinationRequest
+        {
+            VaccineName = "Rabies",
+            VaccinatedAt = DateTime.UtcNow.AddYears(-1).AddDays(-1),
+            ImmunityYears = 1
+        }));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenPreviousVaccinationStillActive_Throws()
+    {
+        _petRepository
+            .Setup(r => r.GetByIdAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildPet());
+        _vaccinationRepository
+            .Setup(r => r.GetByPetIdAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Vaccination>
+            {
+                new()
+                {
+                    Id = 1,
+                    PetId = 7,
+                    VaccineName = "Rabies",
+                    VaccinatedAt = DateTime.UtcNow.AddMonths(-2),
+                    NextDueAt = DateTime.UtcNow.AddMonths(10)
+                }
+            });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().CreateAsync(7, new CreateVaccinationRequest
+        {
+            VaccineName = "Bordetella",
+            VaccinatedAt = DateTime.UtcNow.AddDays(-1),
+            ImmunityYears = 1
+        }));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenPreviousVaccinationStillActive_AndEarlyAllowed_Succeeds()
+    {
+        _petRepository
+            .Setup(r => r.GetByIdAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildPet());
+        _vaccinationRepository
+            .Setup(r => r.GetByPetIdAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Vaccination>
+            {
+                new()
+                {
+                    Id = 1,
+                    PetId = 7,
+                    VaccineName = "Rabies",
+                    VaccinatedAt = DateTime.UtcNow.AddMonths(-2),
+                    NextDueAt = DateTime.UtcNow.AddMonths(10)
+                }
+            });
+
+        var result = await CreateService().CreateAsync(7, new CreateVaccinationRequest
+        {
+            VaccineName = "Bordetella",
+            VaccinatedAt = DateTime.UtcNow.AddDays(-1),
+            ImmunityYears = 1
+        }, allowEarlyVaccination: true);
+
+        Assert.Equal("Bordetella", result.VaccineName);
+        _vaccinationRepository.Verify(
+            r => r.AddAsync(It.IsAny<Vaccination>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenPetIsDeceased_Throws()
+    {
+        var pet = BuildPet();
+        pet.IsDeceased = true;
+        _petRepository
+            .Setup(r => r.GetByIdAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pet);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => CreateService().CreateAsync(7, BuildCreateRequest()));
     }
 
     private static CreateVaccinationRequest BuildCreateRequest()

@@ -33,12 +33,15 @@ namespace HappyPet.Infrastructure.Persistence
             modelBuilder.Entity<Pet>(entity =>
             {
                 entity.HasKey(p => p.Id);
-                entity.HasIndex(p => p.MicrochipNumber).IsUnique();
+                entity.HasIndex(p => p.MicrochipNumber)
+                    .IsUnique()
+                    .HasFilter("\"MicrochipNumber\" <> ''");
                 entity.Property(p => p.Name).IsRequired().HasMaxLength(50);
                 entity.Property(p => p.MicrochipNumber).IsRequired().HasMaxLength(15);
                 entity.Property(p => p.Breed).HasMaxLength(50);
                 entity.Property(p => p.LastSeenAddress).HasMaxLength(300);
                 entity.Property(p => p.ContactPhone).HasMaxLength(20);
+                entity.Property(p => p.DeathCause).HasMaxLength(250);
                 entity.HasIndex(p => new { p.IsLost, p.LostAt });
 
                 entity.HasOne(p => p.Owner)
@@ -66,6 +69,7 @@ namespace HappyPet.Infrastructure.Persistence
                 entity.Property(v => v.VaccineName).IsRequired().HasMaxLength(100);
                 entity.Property(v => v.Disease).HasMaxLength(100);
                 entity.Property(v => v.Manufacturer).HasMaxLength(100);
+                entity.Property(v => v.ManufacturerCountry).HasMaxLength(100);
                 entity.Property(v => v.BatchNumber).HasMaxLength(50);
                 entity.Property(v => v.CertificateNumber).HasMaxLength(50);
                 entity.Property(v => v.VeterinarianName).HasMaxLength(100);

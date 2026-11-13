@@ -60,12 +60,34 @@ namespace HappyPet.Application.Services
         public async Task<VaccinationResponse> CreateAsync(
             int petId,
             CreateVaccinationRequest request,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            bool allowNextDueOverride = false,
+            bool allowEarlyVaccination = false)
         {
             var pet = await GetPetAsync(petId, cancellationToken);
+            EnsurePetIsAlive(pet);
+
             var vaccinatedAt = ToUtc(request.VaccinatedAt);
-            var nextDueAt = ToUtcOrNull(request.NextDueAt);
-            EnsureValidDueDate(vaccinatedAt, nextDueAt);
+            var earliestAllowed = DateTime.UtcNow.Date.AddYears(-1);
+            if (vaccinatedAt < earliestAllowed)
+            {
+                throw new ArgumentException(
+                    "ვაქცინაციის თარიღი არ უნდა იყოს ერთ წელზე უფრო ძველი.");
+            }
+
+            if (!allowEarlyVaccination)
+            {
+                await EnsurePreviousVaccinationExpiredAsync(petId, cancellationToken);
+            }
+
+            var requestedNextDueAt = ToUtcOrNull(request.NextDueAt);
+            var computedNextDueAt = ComputeNextDueAt(vaccinatedAt, request.ImmunityYears);
+            var nextDueAt = ResolveNextDueAt(
+                vaccinatedAt,
+                computedNextDueAt,
+                requestedNextDueAt,
+                request.OverrideNextDueDate,
+                allowNextDueOverride);
 
             var vaccination = new Vaccination
             {
@@ -73,6 +95,10 @@ namespace HappyPet.Application.Services
                 VaccineName = request.VaccineName.Trim(),
                 Disease = TrimOrNull(request.Disease),
                 Manufacturer = TrimOrNull(request.Manufacturer),
+                ManufacturerCountry = TrimOrNull(request.ManufacturerCountry),
+                ImmunityYears = request.ImmunityYears,
+                VaccinationType = request.VaccinationType,
+                IsNextDueOverridden = IsNextDueOverridden(computedNextDueAt, requestedNextDueAt),
                 BatchNumber = TrimOrNull(request.BatchNumber),
                 CertificateNumber = TrimOrNull(request.CertificateNumber),
                 VaccinatedAt = vaccinatedAt,
@@ -93,7 +119,8 @@ namespace HappyPet.Application.Services
             int petId,
             int vaccinationId,
             UpdateVaccinationRequest request,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            bool allowNextDueOverride = false)
         {
             var pet = await GetPetAsync(petId, cancellationToken);
             var vaccination = await _vaccinationRepository.GetByIdAsync(vaccinationId, cancellationToken);
@@ -104,12 +131,22 @@ namespace HappyPet.Application.Services
             }
 
             var vaccinatedAt = ToUtc(request.VaccinatedAt);
-            var nextDueAt = ToUtcOrNull(request.NextDueAt);
-            EnsureValidDueDate(vaccinatedAt, nextDueAt);
+            var requestedNextDueAt = ToUtcOrNull(request.NextDueAt);
+            var computedNextDueAt = ComputeNextDueAt(vaccinatedAt, request.ImmunityYears);
+            var nextDueAt = ResolveNextDueAt(
+                vaccinatedAt,
+                computedNextDueAt,
+                requestedNextDueAt,
+                request.OverrideNextDueDate,
+                allowNextDueOverride);
 
             vaccination.VaccineName = request.VaccineName.Trim();
             vaccination.Disease = TrimOrNull(request.Disease);
             vaccination.Manufacturer = TrimOrNull(request.Manufacturer);
+            vaccination.ManufacturerCountry = TrimOrNull(request.ManufacturerCountry);
+            vaccination.ImmunityYears = request.ImmunityYears;
+            vaccination.VaccinationType = request.VaccinationType;
+            vaccination.IsNextDueOverridden = IsNextDueOverridden(computedNextDueAt, requestedNextDueAt);
             vaccination.BatchNumber = TrimOrNull(request.BatchNumber);
             vaccination.CertificateNumber = TrimOrNull(request.CertificateNumber);
             vaccination.VaccinatedAt = vaccinatedAt;
@@ -227,6 +264,77 @@ namespace HappyPet.Application.Services
             }
         }
 
+        private static void EnsurePetIsAlive(Pet pet)
+        {
+            if (pet.IsDeceased)
+            {
+                throw new InvalidOperationException(
+                    "გარდაცვლილი ცხოველისთვის ვაქცინაციის დამატება შეუძლებელია.");
+            }
+        }
+
+        private async Task EnsurePreviousVaccinationExpiredAsync(
+            int petId,
+            CancellationToken cancellationToken)
+        {
+            var existing = await _vaccinationRepository.GetByPetIdAsync(petId, cancellationToken);
+            var activeVaccination = existing
+                .Where(v => v.NextDueAt.HasValue)
+                .OrderByDescending(v => v.VaccinatedAt)
+                .ThenByDescending(v => v.Id)
+                .FirstOrDefault();
+
+            if (activeVaccination?.NextDueAt is { } dueAt && dueAt > DateTime.UtcNow)
+            {
+                throw new InvalidOperationException(
+                    $"წინა ვაქცინაციის ვადა ჯერ არ გასულა (შემდეგი აცრა: {dueAt:yyyy-MM-dd}).");
+            }
+        }
+
+        private static DateTime? ComputeNextDueAt(DateTime vaccinatedAt, int? immunityYears)
+        {
+            return immunityYears.HasValue
+                ? vaccinatedAt.AddYears(immunityYears.Value).AddMonths(-1)
+                : null;
+        }
+
+        private static DateTime? ResolveNextDueAt(
+            DateTime vaccinatedAt,
+            DateTime? computedNextDueAt,
+            DateTime? requestedNextDueAt,
+            bool overrideRequested,
+            bool allowOverride)
+        {
+            if (!computedNextDueAt.HasValue)
+            {
+                EnsureValidDueDate(vaccinatedAt, requestedNextDueAt);
+                return requestedNextDueAt;
+            }
+
+            if (!requestedNextDueAt.HasValue || requestedNextDueAt.Value == computedNextDueAt.Value)
+            {
+                return computedNextDueAt;
+            }
+
+            if (!overrideRequested || !allowOverride)
+            {
+                throw new ArgumentException(
+                    "შემდეგი ვაქცინაციის თარიღი ავტომატურად გამოითვლება იმუნიტეტის ხანგრძლივობიდან. ხელით შეცვლა მხოლოდ კლინიკას/ადმინს შეუძლია.");
+            }
+
+            EnsureValidDueDate(vaccinatedAt, requestedNextDueAt);
+            return requestedNextDueAt;
+        }
+
+        private static bool IsNextDueOverridden(
+            DateTime? computedNextDueAt,
+            DateTime? requestedNextDueAt)
+        {
+            return computedNextDueAt.HasValue
+                   && requestedNextDueAt.HasValue
+                   && requestedNextDueAt.Value != computedNextDueAt.Value;
+        }
+
         private static VaccinationResponse MapToResponse(Vaccination vaccination, string petName)
         {
             var daysUntilDue = vaccination.NextDueAt.HasValue
@@ -241,6 +349,10 @@ namespace HappyPet.Application.Services
                 VaccineName = vaccination.VaccineName,
                 Disease = vaccination.Disease,
                 Manufacturer = vaccination.Manufacturer,
+                ManufacturerCountry = vaccination.ManufacturerCountry,
+                ImmunityYears = vaccination.ImmunityYears,
+                VaccinationType = vaccination.VaccinationType,
+                IsNextDueOverridden = vaccination.IsNextDueOverridden,
                 BatchNumber = vaccination.BatchNumber,
                 CertificateNumber = vaccination.CertificateNumber,
                 VaccinatedAt = vaccination.VaccinatedAt,

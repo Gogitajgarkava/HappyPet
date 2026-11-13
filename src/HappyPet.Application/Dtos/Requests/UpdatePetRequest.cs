@@ -20,6 +20,12 @@ namespace HappyPet.Application.Dtos.Requests
 
         public string? DistinguishingMarks { get; set; }
 
+        public PetSize? Size { get; set; }
+
+        public bool IsSterilized { get; set; }
+
+        public DateTime? SterilizedAt { get; set; }
+
         public bool IsLost { get; set; } = false;
     }
 }

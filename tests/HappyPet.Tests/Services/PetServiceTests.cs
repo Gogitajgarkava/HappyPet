@@ -395,6 +395,81 @@ public class PetServiceTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task MarkDeceasedAsync_SetsLifecycleFieldsAndClearsLost()
+    {
+        var pet = BuildPet();
+        pet.IsLost = true;
+        _petRepository
+            .Setup(r => r.GetByIdAsync(pet.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pet);
+
+        var result = await CreateService().MarkDeceasedAsync(
+            pet.Id,
+            new MarkPetDeceasedRequest
+            {
+                DeceasedAt = DateTime.UtcNow.AddDays(-1),
+                DeathCause = "  ავადმყოფობა  "
+            });
+
+        Assert.True(result.IsDeceased);
+        Assert.NotNull(result.DeceasedAt);
+        Assert.Equal("ავადმყოფობა", result.DeathCause);
+        Assert.False(result.IsLost);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task MarkDeceasedAsync_WhenAlreadyDeceased_IsIdempotent()
+    {
+        var pet = BuildPet();
+        pet.IsDeceased = true;
+        pet.DeceasedAt = DateTime.UtcNow.AddDays(-5);
+        _petRepository
+            .Setup(r => r.GetByIdAsync(pet.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pet);
+
+        var result = await CreateService().MarkDeceasedAsync(
+            pet.Id,
+            new MarkPetDeceasedRequest { DeathCause = "სხვა" });
+
+        Assert.True(result.IsDeceased);
+        Assert.Equal(pet.DeceasedAt, result.DeceasedAt);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task MarkDeceasedAsync_WithFutureDate_Throws()
+    {
+        var pet = BuildPet();
+        _petRepository
+            .Setup(r => r.GetByIdAsync(pet.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pet);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => CreateService().MarkDeceasedAsync(
+            pet.Id,
+            new MarkPetDeceasedRequest { DeceasedAt = DateTime.UtcNow.AddDays(1) }));
+    }
+
+    [Fact]
+    public async Task ReportLostAsync_WhenPetIsDeceased_Throws()
+    {
+        var pet = BuildPet();
+        pet.IsDeceased = true;
+        _petRepository
+            .Setup(r => r.GetByIdAsync(pet.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pet);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().ReportLostAsync(
+            pet.Id,
+            new ReportLostPetRequest
+            {
+                LastSeenAt = DateTime.UtcNow.AddHours(-1),
+                Latitude = 41.7,
+                Longitude = 44.8
+            }));
+    }
+
     private static CreatePetRequest BuildCreateRequest(string microchip = "")
     {
         return new CreatePetRequest

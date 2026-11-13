@@ -47,6 +47,13 @@ namespace HappyPet.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DeathCause")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<DateTime?>("DeceasedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("DistinguishingMarks")
                         .HasColumnType("text");
 
@@ -56,7 +63,13 @@ namespace HappyPet.Infrastructure.Migrations
                     b.Property<int>("Gender")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsDeceased")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsLost")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSterilized")
                         .HasColumnType("boolean");
 
                     b.Property<string>("LastSeenAddress")
@@ -88,8 +101,14 @@ namespace HappyPet.Infrastructure.Migrations
                     b.Property<int>("OwnerId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("Size")
+                        .HasColumnType("integer");
+
                     b.Property<int>("Species")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("SterilizedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -97,7 +116,8 @@ namespace HappyPet.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("MicrochipNumber")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"MicrochipNumber\" <> ''");
 
                     b.HasIndex("OwnerId");
 
@@ -340,7 +360,17 @@ namespace HappyPet.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<int?>("ImmunityYears")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsNextDueOverridden")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Manufacturer")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ManufacturerCountry")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
@@ -359,6 +389,9 @@ namespace HappyPet.Infrastructure.Migrations
 
                     b.Property<DateTime>("VaccinatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("VaccinationType")
+                        .HasColumnType("integer");
 
                     b.Property<string>("VaccineName")
                         .IsRequired()

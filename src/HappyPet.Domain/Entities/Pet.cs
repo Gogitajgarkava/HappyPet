@@ -19,7 +19,14 @@ namespace HappyPet.Domain.Entities
         public PetGender Gender { get; set; }
         public string? Color { get; set; }
         public string? DistinguishingMarks { get; set; }
+        public PetSize? Size { get; set; }
+        public bool IsSterilized { get; set; }
+        public DateTime? SterilizedAt { get; set; }
         public bool IsLost { get; set; } = false;
+
+        public bool IsDeceased { get; set; }
+        public DateTime? DeceasedAt { get; set; }
+        public string? DeathCause { get; set; }
 
         public DateTime? LostAt { get; set; }
         public DateTime? FoundAt { get; set; }

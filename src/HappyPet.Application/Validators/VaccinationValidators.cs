@@ -17,6 +17,18 @@ namespace HappyPet.Application.Validators
             RuleFor(x => x.Manufacturer)
                 .MaximumLength(100).WithMessage("მწარმოებელი არ უნდა აღემატებოდეს 100 სიმბოლოს.");
 
+            RuleFor(x => x.ManufacturerCountry)
+                .MaximumLength(100).WithMessage("მწარმოებლის ქვეყანა არ უნდა აღემატებოდეს 100 სიმბოლოს.");
+
+            RuleFor(x => x.ImmunityYears)
+                .InclusiveBetween(1, 3)
+                .WithMessage("იმუნიტეტის ხანგრძლივობა უნდა იყოს 1, 2 ან 3 წელი.")
+                .When(x => x.ImmunityYears.HasValue);
+
+            RuleFor(x => x.VaccinationType)
+                .IsInEnum().WithMessage("ვაქცინაციის ტიპი არასწორია.")
+                .When(x => x.VaccinationType.HasValue);
+
             RuleFor(x => x.BatchNumber)
                 .MaximumLength(50).WithMessage("სერიის ნომერი არ უნდა აღემატებოდეს 50 სიმბოლოს.");
 
@@ -25,7 +37,9 @@ namespace HappyPet.Application.Validators
 
             RuleFor(x => x.VaccinatedAt)
                 .NotEmpty().WithMessage("ვაქცინაციის თარიღი სავალდებულოა.")
-                .LessThanOrEqualTo(_ => DateTime.UtcNow).WithMessage("ვაქცინაციის თარიღი მომავალში არ შეიძლება იყოს.");
+                .LessThanOrEqualTo(_ => DateTime.UtcNow).WithMessage("ვაქცინაციის თარიღი მომავალში არ შეიძლება იყოს.")
+                .GreaterThanOrEqualTo(_ => DateTime.UtcNow.Date.AddYears(-1))
+                .WithMessage("ვაქცინაციის თარიღი არ უნდა იყოს ერთ წელზე უფრო ძველი.");
 
             RuleFor(x => x.NextDueAt)
                 .GreaterThan(x => x.VaccinatedAt)
@@ -56,6 +70,18 @@ namespace HappyPet.Application.Validators
 
             RuleFor(x => x.Manufacturer)
                 .MaximumLength(100).WithMessage("მწარმოებელი არ უნდა აღემატებოდეს 100 სიმბოლოს.");
+
+            RuleFor(x => x.ManufacturerCountry)
+                .MaximumLength(100).WithMessage("მწარმოებლის ქვეყანა არ უნდა აღემატებოდეს 100 სიმბოლოს.");
+
+            RuleFor(x => x.ImmunityYears)
+                .InclusiveBetween(1, 3)
+                .WithMessage("იმუნიტეტის ხანგრძლივობა უნდა იყოს 1, 2 ან 3 წელი.")
+                .When(x => x.ImmunityYears.HasValue);
+
+            RuleFor(x => x.VaccinationType)
+                .IsInEnum().WithMessage("ვაქცინაციის ტიპი არასწორია.")
+                .When(x => x.VaccinationType.HasValue);
 
             RuleFor(x => x.BatchNumber)
                 .MaximumLength(50).WithMessage("სერიის ნომერი არ უნდა აღემატებოდეს 50 სიმბოლოს.");

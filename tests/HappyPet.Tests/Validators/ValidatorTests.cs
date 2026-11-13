@@ -209,4 +209,75 @@ public class ValidatorTests
 
         Assert.True(result.IsValid);
     }
+
+    [Fact]
+    public async Task CreateVaccinationRequestValidator_WithAirsFields_Passes()
+    {
+        var validator = new CreateVaccinationRequestValidator();
+        var vaccinatedAt = DateTime.UtcNow.AddDays(-10);
+        var request = new CreateVaccinationRequest
+        {
+            VaccineName = "Rabies",
+            ManufacturerCountry = "საფრანგეთი",
+            ImmunityYears = 3,
+            VaccinationType = VaccinationType.Mandatory,
+            VaccinatedAt = vaccinatedAt,
+            NextDueAt = vaccinatedAt.AddYears(3).AddMonths(-1)
+        };
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public async Task CreateVaccinationRequestValidator_WithOlderThanOneYear_ReturnsError()
+    {
+        var validator = new CreateVaccinationRequestValidator();
+        var request = new CreateVaccinationRequest
+        {
+            VaccineName = "Rabies",
+            VaccinatedAt = DateTime.UtcNow.AddYears(-1).AddDays(-1),
+            ImmunityYears = 1
+        };
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.VaccinatedAt));
+    }
+
+    [Fact]
+    public async Task CreateVaccinationRequestValidator_WithInvalidImmunityYears_ReturnsError()
+    {
+        var validator = new CreateVaccinationRequestValidator();
+        var request = new CreateVaccinationRequest
+        {
+            VaccineName = "Rabies",
+            VaccinatedAt = DateTime.UtcNow.AddDays(-10),
+            ImmunityYears = 5
+        };
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.ImmunityYears));
+    }
+
+    [Fact]
+    public async Task MarkPetDeceasedRequestValidator_WithFutureDate_ReturnsError()
+    {
+        var validator = new MarkPetDeceasedRequestValidator();
+        var request = new MarkPetDeceasedRequest
+        {
+            DeceasedAt = DateTime.UtcNow.AddDays(1),
+            DeathCause = new string('a', 251)
+        };
+
+        var result = await validator.ValidateAsync(request);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.DeceasedAt));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.DeathCause));
+    }
 }

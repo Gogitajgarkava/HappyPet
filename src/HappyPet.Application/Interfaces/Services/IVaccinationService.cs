@@ -13,12 +13,15 @@ namespace HappyPet.Application.Interfaces.Services
         Task<VaccinationResponse> CreateAsync(
             int petId,
             CreateVaccinationRequest request,
-            CancellationToken cancellationToken = default);
+            CancellationToken cancellationToken = default,
+            bool allowNextDueOverride = false,
+            bool allowEarlyVaccination = false);
         Task<VaccinationResponse> UpdateAsync(
             int petId,
             int vaccinationId,
             UpdateVaccinationRequest request,
-            CancellationToken cancellationToken = default);
+            CancellationToken cancellationToken = default,
+            bool allowNextDueOverride = false);
         Task DeleteAsync(int petId, int vaccinationId, CancellationToken cancellationToken = default);
         Task<VaccinationImportResult> ImportFromAirsAsync(int petId, CancellationToken cancellationToken = default);
     }

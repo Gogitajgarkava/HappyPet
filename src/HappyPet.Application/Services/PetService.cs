@@ -66,6 +66,9 @@ namespace HappyPet.Application.Services
                 Gender = request.Gender,
                 Color = request.Color?.Trim(),
                 DistinguishingMarks = request.DistinguishingMarks?.Trim(),
+                Size = request.Size,
+                IsSterilized = request.IsSterilized,
+                SterilizedAt = ToUtcOrNull(request.SterilizedAt),
                 IsLost = request.IsLost,
                 LostAt = request.IsLost ? DateTime.UtcNow : null,
                 CreatedAt = DateTime.UtcNow
@@ -194,6 +197,11 @@ namespace HappyPet.Application.Services
                 throw new KeyNotFoundException("ცხოველი ვერ მოიძებნა.");
             }
 
+            if (pet.IsDeceased)
+            {
+                throw new InvalidOperationException("გარდაცვლილი ცხოველი დაკარგულად ვერ მოინიშნება.");
+            }
+
             var now = DateTime.UtcNow;
 
             if (!pet.IsLost)
@@ -234,6 +242,46 @@ namespace HappyPet.Application.Services
             return MapToResponse(pet);
         }
 
+        public async Task<PetResponse> MarkDeceasedAsync(
+            int id,
+            MarkPetDeceasedRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var pet = await _petRepository.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                throw new KeyNotFoundException("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (pet.IsDeceased)
+            {
+                return MapToResponse(pet);
+            }
+
+            var now = DateTime.UtcNow;
+            var deceasedAt = request.DeceasedAt.HasValue ? ToUtc(request.DeceasedAt.Value) : now;
+
+            if (deceasedAt > now)
+            {
+                throw new ArgumentException("გარდაცვალების თარიღი მომავალში არ შეიძლება იყოს.");
+            }
+
+            if (pet.BirthDate.HasValue && deceasedAt < pet.BirthDate.Value)
+            {
+                throw new ArgumentException("გარდაცვალების თარიღი დაბადების თარიღზე ადრე არ შეიძლება იყოს.");
+            }
+
+            pet.IsDeceased = true;
+            pet.DeceasedAt = deceasedAt;
+            pet.DeathCause = TrimOrNull(request.DeathCause);
+            pet.IsLost = false;
+            pet.UpdatedAt = now;
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return MapToResponse(pet);
+        }
+
         public async Task<PetResponse> UpdateAsync(int id, UpdatePetRequest request, CancellationToken cancellationToken = default)
         {
             var pet = await _petRepository.GetByIdAsync(id, cancellationToken);
@@ -257,6 +305,9 @@ namespace HappyPet.Application.Services
             pet.Gender = request.Gender;
             pet.Color = request.Color?.Trim();
             pet.DistinguishingMarks = request.DistinguishingMarks?.Trim();
+            pet.Size = request.Size;
+            pet.IsSterilized = request.IsSterilized;
+            pet.SterilizedAt = ToUtcOrNull(request.SterilizedAt);
 
             var now = DateTime.UtcNow;
             if (request.IsLost && !pet.IsLost)
@@ -539,9 +590,15 @@ namespace HappyPet.Application.Services
                 Gender = pet.Gender,
                 Color = pet.Color,
                 DistinguishingMarks = pet.DistinguishingMarks,
+                Size = pet.Size,
+                IsSterilized = pet.IsSterilized,
+                SterilizedAt = pet.SterilizedAt,
                 IsLost = pet.IsLost,
                 LostAt = pet.LostAt,
                 FoundAt = pet.FoundAt,
+                IsDeceased = pet.IsDeceased,
+                DeceasedAt = pet.DeceasedAt,
+                DeathCause = pet.DeathCause,
                 LastSeenAt = pet.LastSeenAt,
                 LastSeenLatitude = pet.LastSeenLatitude,
                 LastSeenLongitude = pet.LastSeenLongitude,

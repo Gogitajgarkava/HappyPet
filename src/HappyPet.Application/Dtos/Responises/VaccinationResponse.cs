@@ -1,3 +1,5 @@
+using HappyPet.Domain.Enums;
+
 namespace HappyPet.Application.Dtos.Responses
 {
     public class VaccinationResponse
@@ -8,6 +10,10 @@ namespace HappyPet.Application.Dtos.Responses
         public string VaccineName { get; set; } = string.Empty;
         public string? Disease { get; set; }
         public string? Manufacturer { get; set; }
+        public string? ManufacturerCountry { get; set; }
+        public int? ImmunityYears { get; set; }
+        public VaccinationType? VaccinationType { get; set; }
+        public bool IsNextDueOverridden { get; set; }
         public string? BatchNumber { get; set; }
         public string? CertificateNumber { get; set; }
         public DateTime VaccinatedAt { get; set; }

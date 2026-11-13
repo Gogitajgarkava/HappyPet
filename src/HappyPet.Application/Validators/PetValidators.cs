@@ -32,6 +32,15 @@ namespace HappyPet.Application.Validators
 
             RuleFor(x => x.DistinguishingMarks)
                 .MaximumLength(500).WithMessage("განმასხვავებელი ნიშნები არ უნდა აღემატებოდეს 500 სიმბოლოს.");
+
+            RuleFor(x => x.Size)
+                .IsInEnum().WithMessage("ზომა არასწორია.")
+                .When(x => x.Size.HasValue);
+
+            RuleFor(x => x.SterilizedAt)
+                .LessThanOrEqualTo(_ => DateTime.UtcNow)
+                .WithMessage("სტერილიზაციის თარიღი მომავალში არ შეიძლება იყოს.")
+                .When(x => x.SterilizedAt.HasValue);
         }
     }
 
@@ -65,6 +74,15 @@ namespace HappyPet.Application.Validators
 
             RuleFor(x => x.DistinguishingMarks)
                 .MaximumLength(500).WithMessage("განმასხვავებელი ნიშნები არ უნდა აღემატებოდეს 500 სიმბოლოს.");
+
+            RuleFor(x => x.Size)
+                .IsInEnum().WithMessage("ზომა არასწორია.")
+                .When(x => x.Size.HasValue);
+
+            RuleFor(x => x.SterilizedAt)
+                .LessThanOrEqualTo(_ => DateTime.UtcNow)
+                .WithMessage("სტერილიზაციის თარიღი მომავალში არ შეიძლება იყოს.")
+                .When(x => x.SterilizedAt.HasValue);
         }
     }
 
@@ -90,6 +108,20 @@ namespace HappyPet.Application.Validators
                 .Matches(@"^\+?[0-9\s\-()]{7,20}$")
                 .WithMessage("საკონტაქტო ნომრის ფორმატი არასწორია.")
                 .When(x => !string.IsNullOrWhiteSpace(x.ContactPhone));
+        }
+    }
+
+    public class MarkPetDeceasedRequestValidator : AbstractValidator<MarkPetDeceasedRequest>
+    {
+        public MarkPetDeceasedRequestValidator()
+        {
+            RuleFor(x => x.DeceasedAt)
+                .LessThanOrEqualTo(_ => DateTime.UtcNow)
+                .WithMessage("გარდაცვალების თარიღი მომავალში არ შეიძლება იყოს.")
+                .When(x => x.DeceasedAt.HasValue);
+
+            RuleFor(x => x.DeathCause)
+                .MaximumLength(250).WithMessage("გარდაცვალების მიზეზი არ უნდა აღემატებოდეს 250 სიმბოლოს.");
         }
     }
 }

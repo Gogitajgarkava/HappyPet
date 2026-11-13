@@ -17,6 +17,7 @@ namespace HappyPet.Application.Interfaces.Services
             CancellationToken cancellationToken = default);
         Task<PetResponse> ReportLostAsync(int id, ReportLostPetRequest request, CancellationToken cancellationToken = default);
         Task<PetResponse> ReportFoundAsync(int id, CancellationToken cancellationToken = default);
+        Task<PetResponse> MarkDeceasedAsync(int id, MarkPetDeceasedRequest request, CancellationToken cancellationToken = default);
         Task<PetResponse> UpdateAsync(int id, UpdatePetRequest request, CancellationToken cancellationToken = default);
         Task DeleteAsync(int id, CancellationToken cancellationToken = default);
 

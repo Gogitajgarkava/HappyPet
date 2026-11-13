@@ -185,6 +185,7 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | GET | `/api/v1/pet/lost` | Public lost-pet search (paginated, optional geo filter) |
 | POST | `/api/v1/pet/{id}/lost` | Mark a pet as lost with last-seen location (owner or admin) |
 | POST | `/api/v1/pet/{id}/found` | Mark a lost pet as found (owner or admin) |
+| POST | `/api/v1/pet/{id}/deceased` | Mark a pet as deceased (owner or admin) |
 | GET | `/api/v1/pet/{id}/vaccinations` | List a pet's vaccinations (owner or admin) |
 | POST | `/api/v1/pet/{id}/vaccinations` | Add a vaccination record (owner or admin) |
 | PUT | `/api/v1/pet/{id}/vaccinations/{vaccinationId}` | Update a vaccination record (owner or admin) |
@@ -258,28 +259,45 @@ When `latitude` and `longitude` are supplied, results are limited to pets inside
 }
 ```
 
-Reporting a pet as lost requires `lastSeenAt`, `latitude` and `longitude`; `lastSeenAddress` and `contactPhone` are optional. `contactPhone` is shown publicly as-is, so owners decide what to publish. Calling `/lost` again updates the last-seen details but keeps the original `lostAt`. `/found` clears `isLost`, records `foundAt` and is idempotent.
+Reporting a pet as lost requires `lastSeenAt`, `latitude` and `longitude`; `lastSeenAddress` and `contactPhone` are optional. `contactPhone` is shown publicly as-is, so owners decide what to publish. Calling `/lost` again updates the last-seen details but keeps the original `lostAt`. `/found` clears `isLost`, records `foundAt` and is idempotent. A deceased pet cannot be reported as lost.
+
+### Pet lifecycle
+
+Pets can be marked as deceased with `POST /api/v1/pet/{id}/deceased`:
+
+```json
+{
+  "deceasedAt": "2026-11-12T00:00:00Z",
+  "deathCause": "ავადმყოფობა"
+}
+```
+
+Both fields are optional; `deceasedAt` defaults to the current time, cannot be in the future and cannot be earlier than the pet's birth date. Death is irreversible in the API: repeated calls are idempotent and do not overwrite the first record. The response includes `isDeceased`, `deceasedAt` and `deathCause`. Pet create/update requests accept `size` (`Small`, `Medium`, `Large`), `isSterilized` and `sterilizedAt`.
 
 ### Vaccinations
 
-Vaccination records belong to a pet and are managed by its owner (or an admin). Each record stores the vaccine name, disease, manufacturer, batch and certificate numbers, administration date, next due date, veterinarian, clinic and free-form notes.
+Vaccination records belong to a pet and are managed by its owner (or an admin). Each record stores the vaccine name, disease, manufacturer, manufacturer country, immunity duration, vaccination type, batch and certificate numbers, administration date, next due date, veterinarian, clinic and free-form notes.
 
 ```json
 {
   "vaccineName": "Rabies",
   "disease": "რაბიესი",
   "manufacturer": "MSD Animal Health",
+  "manufacturerCountry": "საფრანგეთი",
+  "immunityYears": 1,
+  "vaccinationType": "Mandatory",
   "batchNumber": "BATCH-2026-5401",
   "certificateNumber": "CERT-2026-000001",
   "vaccinatedAt": "2026-10-07T00:00:00Z",
-  "nextDueAt": "2027-10-07T00:00:00Z",
   "veterinarianName": "ექიმი",
   "clinicName": "კლინიკა",
   "notes": "გვერდითი ეფექტი არ დაფიქსირდა"
 }
 ```
 
-`vaccinatedAt` is required and cannot be in the future. When `nextDueAt` is supplied it must be later than `vaccinatedAt`. Responses include `daysUntilDue` and `isOverdue` so a client can render reminders without extra calculations.
+`vaccinatedAt` is required, cannot be in the future and, for new records, cannot be older than one year. `immunityYears` accepts `1`, `2` or `3`; `vaccinationType` accepts `Prophylactic` or `Mandatory`. When `immunityYears` is supplied, `nextDueAt` is calculated automatically as `vaccinatedAt + immunityYears − 1 month`. A client-supplied `nextDueAt` that differs from the calculated value is rejected unless the caller is an admin or veterinarian and sends `overrideNextDueDate: true`; such records are marked with `isNextDueOverridden: true`. When `immunityYears` is omitted, a supplied `nextDueAt` must be later than `vaccinatedAt`.
+
+New vaccinations are rejected when the pet is deceased or when the previous vaccination has not yet expired. Admin and veterinarian users can bypass the previous-vaccination guard for early revaccination. AIRS imports are not subject to these local restrictions. Responses include `daysUntilDue` and `isOverdue` so a client can render reminders without extra calculations.
 
 `GET /api/v1/pet/vaccinations/due?daysAhead=30` returns all vaccinations with `nextDueAt` up to the requested horizon for the current user's pets. `daysAhead` defaults to `30` and is clamped to `1..365`; overdue records are always included.
 
@@ -401,6 +419,7 @@ The `airs-mock` container is a development-only stand-in for the real AIRS API. 
 
 Pet creation and microchip changes are validated against AIRS:
 
+- A pet without a microchip number (`""`) skips AIRS validation; multiple pets without a microchip are allowed.
 - The microchip must exist in AIRS.
 - The AIRS owner personal ID must match the authenticated HappyPet user's personal ID.
 - If the microchip is not found, belongs to another owner, or AIRS is unavailable, the pet is not created or updated.

@@ -30,6 +30,19 @@ namespace HappyPet.Domain.Enums
         Spayed = 4
     }
 
+    public enum PetSize
+    {
+        Small = 1,
+        Medium = 2,
+        Large = 3
+    }
+
+    public enum VaccinationType
+    {
+        Prophylactic = 1,
+        Mandatory = 2
+    }
+
     public enum OtpPurpose
     {
         EmailVerification = 1,

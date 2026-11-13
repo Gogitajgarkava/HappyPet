@@ -126,6 +126,27 @@ namespace HappyPet.WebAPI.Controllers
             return Ok(result);
         }
 
+        [HttpPost("{id:int}/deceased")]
+        public async Task<IActionResult> MarkPetDeceased(
+            int id,
+            [FromBody] MarkPetDeceasedRequest request,
+            CancellationToken cancellationToken)
+        {
+            var pet = await _petService.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (!CanAccess(pet.OwnerId))
+            {
+                return Forbid();
+            }
+
+            var result = await _petService.MarkDeceasedAsync(id, request, cancellationToken);
+            return Ok(result);
+        }
+
         [HttpGet("{id:int}/vaccinations")]
         public async Task<IActionResult> GetVaccinations(int id, CancellationToken cancellationToken)
         {
@@ -161,7 +182,12 @@ namespace HappyPet.WebAPI.Controllers
                 return Forbid();
             }
 
-            var result = await _vaccinationService.CreateAsync(id, request, cancellationToken);
+            var result = await _vaccinationService.CreateAsync(
+                id,
+                request,
+                cancellationToken,
+                allowNextDueOverride: CanOverrideVaccinationRules,
+                allowEarlyVaccination: CanOverrideVaccinationRules);
             return StatusCode(StatusCodes.Status201Created, result);
         }
 
@@ -183,7 +209,12 @@ namespace HappyPet.WebAPI.Controllers
                 return Forbid();
             }
 
-            var result = await _vaccinationService.UpdateAsync(id, vaccinationId, request, cancellationToken);
+            var result = await _vaccinationService.UpdateAsync(
+                id,
+                vaccinationId,
+                request,
+                cancellationToken,
+                allowNextDueOverride: CanOverrideVaccinationRules);
             return Ok(result);
         }
 
@@ -397,6 +428,15 @@ namespace HappyPet.WebAPI.Controllers
         private bool CanAccess(int ownerId)
         {
             return User.IsInRole(nameof(UserRole.Admin)) || CurrentUserId == ownerId;
+        }
+
+        private bool CanOverrideVaccinationRules
+        {
+            get
+            {
+                return User.IsInRole(nameof(UserRole.Admin))
+                       || User.IsInRole(nameof(UserRole.Veterinarian));
+            }
         }
     }
 }
