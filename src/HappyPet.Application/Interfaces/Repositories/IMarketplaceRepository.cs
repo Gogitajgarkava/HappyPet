@@ -13,6 +13,14 @@ namespace HappyPet.Application.Interfaces.Repositories
         public string? Search { get; set; }
     }
 
+    public sealed class OwnershipTransferStats
+    {
+        public int PendingCount { get; init; }
+        public int SyncedCount { get; init; }
+        public int RejectedCount { get; init; }
+        public int TotalCount { get; init; }
+    }
+
     public interface IMarketplaceRepository
     {
         Task AddAsync(MarketplaceListing listing, CancellationToken cancellationToken = default);
@@ -49,6 +57,17 @@ namespace HappyPet.Application.Interfaces.Repositories
         Task AddOwnershipTransferAsync(OwnershipTransfer transfer, CancellationToken cancellationToken = default);
         Task<OwnershipTransfer?> GetOwnershipTransferByListingIdAsync(
             int listingId,
+            CancellationToken cancellationToken = default);
+        Task<OwnershipTransfer?> GetOwnershipTransferByIdAsync(
+            int id,
+            CancellationToken cancellationToken = default);
+        Task<(List<OwnershipTransfer> Items, int TotalCount)> GetOwnershipTransfersPagedAsync(
+            OwnershipTransferStatus? status,
+            string? search,
+            int skip,
+            int take,
+            CancellationToken cancellationToken = default);
+        Task<OwnershipTransferStats> GetOwnershipTransferStatsAsync(
             CancellationToken cancellationToken = default);
     }
 }

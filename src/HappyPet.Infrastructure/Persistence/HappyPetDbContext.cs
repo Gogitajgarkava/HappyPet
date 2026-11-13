@@ -172,9 +172,13 @@ namespace HappyPet.Infrastructure.Persistence
                 entity.Property(t => t.BuyerFullName).IsRequired().HasMaxLength(100);
                 entity.Property(t => t.BuyerPersonalId).IsRequired().HasMaxLength(11);
                 entity.Property(t => t.BuyerPhone).HasMaxLength(20);
+                entity.Property(t => t.BuyerAddress).HasMaxLength(300);
                 entity.Property(t => t.AirsReference).HasMaxLength(100);
+                entity.Property(t => t.RejectionReason).HasMaxLength(500);
+                entity.Property(t => t.OperatorNotes).HasMaxLength(500);
                 entity.Property(t => t.Notes).HasMaxLength(500);
                 entity.Property(t => t.Price).HasPrecision(18, 2);
+                entity.HasIndex(t => new { t.Status, t.ProcessedAt });
 
                 entity.HasOne(t => t.Listing)
                     .WithOne(l => l.OwnershipTransfer)

@@ -29,6 +29,7 @@ src/
     Services/PetService.cs
     Services/VaccinationService.cs
     Services/MarketplaceService.cs
+    Services/OperatorService.cs
     Services/AirsService.cs
     Common/GeoDistance.cs  # Haversine distance and bounding box helpers
     Validators/            # FluentValidation rules for every request DTO
@@ -44,6 +45,7 @@ src/
     Controllers/UserControler.cs
     Controllers/PetController.cs
     Controllers/MarketplaceController.cs
+    Controllers/OperatorController.cs
     Controllers/AirsController.cs
     ErrorHandling/ApiExceptionHandler.cs
     Filters/FluentValidationActionFilter.cs
@@ -216,6 +218,11 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | POST | `/api/v1/marketplace/listings/{id}/photos` | Upload a listing photo, `multipart/form-data`, max 5 MB (owner or admin) |
 | PUT | `/api/v1/marketplace/listings/{id}/photos/{photoId}/primary` | Set the primary listing photo (owner or admin) |
 | DELETE | `/api/v1/marketplace/listings/{id}/photos/{photoId}` | Delete a listing photo (owner or admin) |
+| GET | `/api/v1/operator/dashboard` | Ownership-transfer counts by status (veterinarian or admin) |
+| GET | `/api/v1/operator/transfers` | Operator queue of ownership transfers, filterable by status and search (veterinarian or admin) |
+| GET | `/api/v1/operator/transfers/{id}` | Ownership-transfer details (veterinarian or admin) |
+| POST | `/api/v1/operator/transfers/{id}/mark-synced` | Confirm the AIRS ownership change and update the local pet owner (veterinarian or admin) |
+| POST | `/api/v1/operator/transfers/{id}/reject` | Reject a pending ownership transfer with a reason (veterinarian or admin) |
 | GET | `/api/v1/airs/animals/by-microchip/{microchip}` | AIRS animal and vaccinations by microchip |
 | GET | `/api/v1/airs/vaccinations/{microchip}` | AIRS vaccinations by microchip |
 
@@ -367,12 +374,37 @@ Completing a listing:
   "buyerFullName": "ნინო ბერიძე",
   "buyerPersonalId": "01000000002",
   "buyerPhone": "+995555111111",
+  "buyerAddress": "თბილისი, რუსთაველის გამზირი 1",
   "transferredAt": null,
   "notes": "შეხვედრა კლინიკაში"
 }
 ```
 
 `POST /api/v1/marketplace/listings/{id}/complete` is available to the seller or an admin. It marks the listing `Completed` and creates a local `OwnershipTransfer` with `Status = PendingAirsSync`. For a linked pet it records the pet id and microchip; for a standalone newborn listing the transfer still records the seller, buyer, type and price. The actual AIRS ownership change is performed later by an operator or clinic, so the local pet owner is **not** changed automatically by this endpoint.
+
+### Clinic / operator workflow
+
+Operators are users with the `Veterinarian` or `Admin` role. They process ownership transfers after the marketplace completion:
+
+1. `GET /api/v1/operator/dashboard` returns `pendingTransfers`, `syncedTransfers`, `rejectedTransfers` and `totalTransfers`.
+2. `GET /api/v1/operator/transfers?status=PendingAirsSync` returns the queue in creation order. Optional filters: `search` (pet, buyer, seller, microchip or personal ID) and `page`/`pageSize`.
+3. The operator performs the ownership change in the AIRS portal manually, then calls `POST /api/v1/operator/transfers/{id}/mark-synced`:
+
+```json
+{
+  "airsReference": "AIRS-2026-000123",
+  "syncedAt": "2026-11-13T09:00:00Z",
+  "buyerUserId": 12,
+  "buyerAddress": "თბილისი, რუსთაველის გამზირი 1",
+  "notes": "AIRS-ში მფლობელი შეიცვალა"
+}
+```
+
+On success the transfer becomes `Synced`, stores the AIRS reference, processing user/time and notes, and updates `Pet.OwnerId` to the buyer for a linked pet. If the marketplace completion did not include `buyerUserId`, the operator can supply it or the API automatically links an existing HappyPet user by the buyer's personal ID. A linked pet cannot be marked synced without a known buyer account, because the local owner must remain consistent with AIRS. Standalone listings (for example newborn pets without a registered pet) do not require a buyer account.
+
+4. If the AIRS change cannot be performed, the operator calls `POST /api/v1/operator/transfers/{id}/reject` with a required `reason` and optional `notes`. Rejected transfers keep the pet owner unchanged.
+
+Only `PendingAirsSync` transfers can be processed. Repeated processing returns `400 BUSINESS_RULE_VIOLATION`. AIRS remains a manual external step: HappyPet does not call an AIRS ownership-write API because the official API is not available.
 
 ### Request validation
 
@@ -482,7 +514,7 @@ Configuration:
 dotnet test
 ```
 
-The xUnit suite covers AIRS validation, pet creation/update rules, lost/found flows, vaccination records, marketplace listing rules and ownership transfers, geo distance, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
+The xUnit suite covers AIRS validation, pet creation/update rules, lost/found flows, vaccination records, marketplace listing rules, ownership transfers and operator processing, geo distance, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
 
 ## AIRS mock and microchip validation
 

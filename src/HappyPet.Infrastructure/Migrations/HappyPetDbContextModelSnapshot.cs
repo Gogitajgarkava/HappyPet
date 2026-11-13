@@ -193,6 +193,10 @@ namespace HappyPet.Infrastructure.Migrations
                     b.Property<DateTime?>("AirsSyncedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("BuyerAddress")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<string>("BuyerFullName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -224,12 +228,26 @@ namespace HappyPet.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("OperatorNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<int?>("PetId")
                         .HasColumnType("integer");
 
                     b.Property<decimal?>("Price")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ProcessedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<int>("SellerId")
                         .HasColumnType("integer");
@@ -250,6 +268,8 @@ namespace HappyPet.Infrastructure.Migrations
 
                     b.HasIndex("ListingId")
                         .IsUnique();
+
+                    b.HasIndex("Status", "ProcessedAt");
 
                     b.HasIndex("Status", "TransferredAt");
 

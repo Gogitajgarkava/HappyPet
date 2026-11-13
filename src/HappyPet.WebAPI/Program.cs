@@ -233,6 +233,7 @@ builder.Services.AddScoped<IUserServices, UserServices>();
 builder.Services.AddScoped<IPetService, PetService>();
 builder.Services.AddScoped<IVaccinationService, VaccinationService>();
 builder.Services.AddScoped<IMarketplaceService, MarketplaceService>();
+builder.Services.AddScoped<IOperatorService, OperatorService>();
 builder.Services.AddSingleton<IFileStorageService, S3FileStorageService>();
 
 builder.Services.Configure<AirsOptions>(builder.Configuration.GetSection("Airs"));

@@ -19,6 +19,7 @@ namespace HappyPet.Domain.Entities
         public string BuyerFullName { get; set; } = string.Empty;
         public string BuyerPersonalId { get; set; } = string.Empty;
         public string? BuyerPhone { get; set; }
+        public string? BuyerAddress { get; set; }
 
         public OwnershipTransferType TransferType { get; set; }
         public decimal? Price { get; set; }
@@ -26,6 +27,11 @@ namespace HappyPet.Domain.Entities
         public DateTime TransferredAt { get; set; }
         public DateTime? AirsSyncedAt { get; set; }
         public string? AirsReference { get; set; }
+
+        public int? ProcessedByUserId { get; set; }
+        public DateTime? ProcessedAt { get; set; }
+        public string? RejectionReason { get; set; }
+        public string? OperatorNotes { get; set; }
         public string? Notes { get; set; }
 
         public MarketplaceListing Listing { get; set; } = null!;

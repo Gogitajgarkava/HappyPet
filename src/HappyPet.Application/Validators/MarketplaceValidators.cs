@@ -147,6 +147,9 @@ namespace HappyPet.Application.Validators
                 .Matches(@"^\+?[0-9\s\-()]{7,20}$").WithMessage("მყიდველის ტელეფონის ფორმატი არასწორია.")
                 .When(x => !string.IsNullOrWhiteSpace(x.BuyerPhone));
 
+            RuleFor(x => x.BuyerAddress)
+                .MaximumLength(300).WithMessage("მყიდველის მისამართი არ უნდა აღემატებოდეს 300 სიმბოლოს.");
+
             RuleFor(x => x.TransferredAt)
                 .LessThanOrEqualTo(_ => DateTime.UtcNow).WithMessage("გადაცემის დრო მომავალში არ შეიძლება იყოს.")
                 .When(x => x.TransferredAt.HasValue);

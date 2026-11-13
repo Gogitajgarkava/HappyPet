@@ -295,6 +295,7 @@ namespace HappyPet.Application.Services
                 BuyerFullName = request.BuyerFullName.Trim(),
                 BuyerPersonalId = request.BuyerPersonalId.Trim(),
                 BuyerPhone = TrimOrNull(request.BuyerPhone) ?? buyer?.PhoneNumber,
+                BuyerAddress = TrimOrNull(request.BuyerAddress) ?? buyer?.Address,
                 TransferType = listing.ListingType == ListingType.Sale
                     ? OwnershipTransferType.Sale
                     : OwnershipTransferType.Gift,
@@ -763,12 +764,17 @@ namespace HappyPet.Application.Services
                 BuyerFullName = transfer.BuyerFullName,
                 BuyerPersonalId = transfer.BuyerPersonalId,
                 BuyerPhone = transfer.BuyerPhone,
+                BuyerAddress = transfer.BuyerAddress,
                 TransferType = transfer.TransferType,
                 Price = transfer.Price,
                 Status = transfer.Status,
                 TransferredAt = transfer.TransferredAt,
                 AirsSyncedAt = transfer.AirsSyncedAt,
                 AirsReference = transfer.AirsReference,
+                ProcessedByUserId = transfer.ProcessedByUserId,
+                ProcessedAt = transfer.ProcessedAt,
+                RejectionReason = transfer.RejectionReason,
+                OperatorNotes = transfer.OperatorNotes,
                 Notes = transfer.Notes,
                 CreatedAt = transfer.CreatedAt
             };

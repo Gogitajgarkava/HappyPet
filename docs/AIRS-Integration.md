@@ -4,8 +4,30 @@ This document describes the AIRS microchip validation that is implemented in Hap
 
 ## Status
 
-- Implemented: AIRS HTTP client, microchip lookup, owner check, pet create/update validation, AIRS lookup endpoints, Dockerized mock.
-- Not implemented: real AIRS production integration, official AIRS authentication, AIRS synchronization jobs, AIRS write-back.
+- Implemented: AIRS HTTP client, microchip lookup, owner check, pet create/update validation, AIRS lookup endpoints, Dockerized mock, marketplace ownership-transfer queue and local owner write-back after an operator confirms the AIRS change.
+- Not implemented: real AIRS production integration, official AIRS authentication, AIRS synchronization jobs, automatic AIRS write-back.
+
+## Operator ownership-transfer workflow
+
+A marketplace completion creates an `OwnershipTransfer` with `Status = PendingAirsSync`. The actual change of owner is performed manually in the AIRS web portal by a `Veterinarian` or `Admin` operator.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/v1/operator/dashboard` | Counts of pending, synced and rejected transfers |
+| GET | `/api/v1/operator/transfers?status=PendingAirsSync` | Operator queue with optional search and pagination |
+| GET | `/api/v1/operator/transfers/{id}` | Transfer details |
+| POST | `/api/v1/operator/transfers/{id}/mark-synced` | Store the AIRS reference and update the local pet owner |
+| POST | `/api/v1/operator/transfers/{id}/reject` | Close the transfer with a reason |
+
+`mark-synced` requires an `airsReference`. For a transfer linked to a registered pet, the buyer must have a HappyPet account (`buyerUserId` in the transfer or supplied by the operator). If the transfer has no linked account, the API tries to match the buyer by personal ID. On success:
+
+- the transfer becomes `Synced`;
+- `airsReference`, `airsSyncedAt`, `processedByUserId`, `processedAt` and operator notes are stored;
+- `Pet.OwnerId` is changed to the buyer in the same database transaction.
+
+A standalone listing (newborn pet without a registered pet) can be marked synced without a buyer account. Rejecting a transfer does not change the pet owner. Only `PendingAirsSync` transfers can be processed.
+
+AIRS ownership changes are still manual because the official AIRS write API is not available. The operator must complete the change in `https://airs.nfa.gov.ge` first and then confirm it in HappyPet.
 
 ## Configuration
 

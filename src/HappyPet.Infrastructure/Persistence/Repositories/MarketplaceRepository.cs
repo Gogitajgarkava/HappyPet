@@ -181,5 +181,76 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.ListingId == listingId, cancellationToken);
         }
+
+        public async Task<OwnershipTransfer?> GetOwnershipTransferByIdAsync(
+            int id,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.OwnershipTransfers
+                .Include(t => t.Listing)
+                .ThenInclude(l => l.Seller)
+                .FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+        }
+
+        public async Task<(List<OwnershipTransfer> Items, int TotalCount)> GetOwnershipTransfersPagedAsync(
+            OwnershipTransferStatus? status,
+            string? search,
+            int skip,
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            var query = _context.OwnershipTransfers
+                .AsNoTracking()
+                .Include(t => t.Listing)
+                .ThenInclude(l => l.Seller)
+                .AsQueryable();
+
+            if (status.HasValue)
+            {
+                query = query.Where(t => t.Status == status.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var pattern = $"%{search.Trim()}%";
+                query = query.Where(t =>
+                    EF.Functions.ILike(t.BuyerFullName, pattern)
+                    || EF.Functions.ILike(t.BuyerPersonalId, pattern)
+                    || (t.MicrochipNumber != null && EF.Functions.ILike(t.MicrochipNumber, pattern))
+                    || EF.Functions.ILike(t.Listing.PetName, pattern)
+                    || EF.Functions.ILike(t.Listing.Seller.FirstName, pattern)
+                    || EF.Functions.ILike(t.Listing.Seller.LastName, pattern));
+            }
+
+            var totalCount = await query.CountAsync(cancellationToken);
+
+            var items = await query
+                .OrderBy(t => t.CreatedAt)
+                .ThenBy(t => t.Id)
+                .Skip(skip)
+                .Take(take)
+                .ToListAsync(cancellationToken);
+
+            return (items, totalCount);
+        }
+
+        public async Task<OwnershipTransferStats> GetOwnershipTransferStatsAsync(
+            CancellationToken cancellationToken = default)
+        {
+            var pending = await _context.OwnershipTransfers
+                .CountAsync(t => t.Status == OwnershipTransferStatus.PendingAirsSync, cancellationToken);
+            var synced = await _context.OwnershipTransfers
+                .CountAsync(t => t.Status == OwnershipTransferStatus.Synced, cancellationToken);
+            var rejected = await _context.OwnershipTransfers
+                .CountAsync(t => t.Status == OwnershipTransferStatus.Rejected, cancellationToken);
+
+            return new OwnershipTransferStats
+            {
+                PendingCount = pending,
+                SyncedCount = synced,
+                RejectedCount = rejected,
+                TotalCount = pending + synced + rejected
+            };
+        }
     }
 }

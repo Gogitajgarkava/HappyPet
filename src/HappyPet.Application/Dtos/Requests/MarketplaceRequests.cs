@@ -53,6 +53,7 @@ namespace HappyPet.Application.Dtos.Requests
         public string BuyerFullName { get; set; } = string.Empty;
         public string BuyerPersonalId { get; set; } = string.Empty;
         public string? BuyerPhone { get; set; }
+        public string? BuyerAddress { get; set; }
         public DateTime? TransferredAt { get; set; }
         public string? Notes { get; set; }
     }
