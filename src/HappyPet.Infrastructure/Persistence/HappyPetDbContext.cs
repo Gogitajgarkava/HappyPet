@@ -15,6 +15,7 @@ namespace HappyPet.Infrastructure.Persistence
         public DbSet<MarketplaceListing> MarketplaceListings => Set<MarketplaceListing>();
         public DbSet<MarketplaceListingPhoto> MarketplaceListingPhotos => Set<MarketplaceListingPhoto>();
         public DbSet<OwnershipTransfer> OwnershipTransfers => Set<OwnershipTransfer>();
+        public DbSet<VaccinationReminder> VaccinationReminders => Set<VaccinationReminder>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -85,6 +86,24 @@ namespace HappyPet.Infrastructure.Persistence
                 entity.HasOne(v => v.Pet)
                     .WithMany(p => p.Vaccinations)
                     .HasForeignKey(v => v.PetId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<VaccinationReminder>(entity =>
+            {
+                entity.HasKey(r => r.Id);
+                entity.HasIndex(r => new { r.VaccinationId, r.DueAt, r.OffsetDays, r.Channel }).IsUnique();
+                entity.HasIndex(r => new { r.OwnerUserId, r.CreatedAt });
+                entity.HasIndex(r => new { r.Status, r.ScheduledFor });
+                entity.Property(r => r.PetName).IsRequired().HasMaxLength(50);
+                entity.Property(r => r.VaccineName).IsRequired().HasMaxLength(100);
+                entity.Property(r => r.RecipientEmail).IsRequired().HasMaxLength(100);
+                entity.Property(r => r.LastError).HasMaxLength(500);
+                entity.Property(r => r.SkipReason).HasMaxLength(100);
+
+                entity.HasOne(r => r.Vaccination)
+                    .WithMany()
+                    .HasForeignKey(r => r.VaccinationId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 

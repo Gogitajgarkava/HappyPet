@@ -15,11 +15,16 @@ namespace HappyPet.WebAPI.Controllers
     {
         private readonly IPetService _petService;
         private readonly IVaccinationService _vaccinationService;
+        private readonly IReminderService _reminderService;
 
-        public PetController(IPetService petService, IVaccinationService vaccinationService)
+        public PetController(
+            IPetService petService,
+            IVaccinationService vaccinationService,
+            IReminderService reminderService)
         {
             _petService = petService;
             _vaccinationService = vaccinationService;
+            _reminderService = reminderService;
         }
 
         [HttpPost("add-pet")]
@@ -255,6 +260,33 @@ namespace HappyPet.WebAPI.Controllers
 
             var result = await _vaccinationService.ImportFromAirsAsync(id, cancellationToken);
             return Ok(result);
+        }
+
+        [HttpGet("{id:int}/reminders")]
+        public async Task<IActionResult> GetPetReminders(
+            int id,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20,
+            CancellationToken cancellationToken = default)
+        {
+            var pet = await _petService.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (!CanAccess(pet.OwnerId))
+            {
+                return Forbid();
+            }
+
+            var reminders = await _reminderService.GetByPetAsync(
+                id,
+                page,
+                pageSize,
+                cancellationToken);
+
+            return Ok(reminders);
         }
 
         [HttpGet("vaccinations/due")]

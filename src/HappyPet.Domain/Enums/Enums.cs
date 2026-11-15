@@ -71,6 +71,19 @@ namespace HappyPet.Domain.Enums
         Rejected = 3
     }
 
+    public enum ReminderChannel
+    {
+        Email = 1
+    }
+
+    public enum ReminderStatus
+    {
+        Pending = 1,
+        Sent = 2,
+        Failed = 3,
+        Skipped = 4
+    }
+
     public enum OtpPurpose
     {
         EmailVerification = 1,

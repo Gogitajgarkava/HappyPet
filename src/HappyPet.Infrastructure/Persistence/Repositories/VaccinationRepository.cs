@@ -46,6 +46,24 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<List<Vaccination>> GetReminderCandidatesAsync(
+            DateTime fromUtc,
+            DateTime toUtcExclusive,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.Vaccinations
+                .AsNoTracking()
+                .Include(v => v.Pet)
+                .ThenInclude(p => p.Owner)
+                .Where(v => !v.Pet.IsDeceased
+                            && v.NextDueAt != null
+                            && v.NextDueAt >= fromUtc
+                            && v.NextDueAt < toUtcExclusive)
+                .OrderBy(v => v.NextDueAt)
+                .ThenBy(v => v.Pet.Name)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<bool> ExistsAirsVaccinationAsync(
             int petId,
             string airsVaccinationId,

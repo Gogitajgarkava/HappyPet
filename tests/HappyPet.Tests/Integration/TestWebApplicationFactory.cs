@@ -27,7 +27,8 @@ public sealed class TestWebApplicationFactory : WebApplicationFactory<Program>
                 ["RateLimiting:LoginPermitLimit"] = "10",
                 ["RateLimiting:LoginWindowMinutes"] = "5",
                 ["RateLimiting:OtpPermitLimit"] = "10",
-                ["RateLimiting:OtpWindowMinutes"] = "10"
+                ["RateLimiting:OtpWindowMinutes"] = "10",
+                ["Reminders:Enabled"] = "false"
             });
         });
     }

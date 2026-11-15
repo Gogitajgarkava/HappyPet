@@ -18,6 +18,7 @@ src/
     Entities/MarketplaceListing.cs
     Entities/MarketplaceListingPhoto.cs
     Entities/OwnershipTransfer.cs
+    Entities/VaccinationReminder.cs
     Enums/Enums.cs
   HappyPet.Application/     # Use cases, interfaces, DTOs, validation
     Dtos/Requests/
@@ -30,6 +31,7 @@ src/
     Services/VaccinationService.cs
     Services/MarketplaceService.cs
     Services/OperatorService.cs
+    Services/ReminderService.cs
     Services/AirsService.cs
     Common/GeoDistance.cs  # Haversine distance and bounding box helpers
     Validators/            # FluentValidation rules for every request DTO
@@ -46,6 +48,7 @@ src/
     Controllers/PetController.cs
     Controllers/MarketplaceController.cs
     Controllers/OperatorController.cs
+    Controllers/ReminderController.cs
     Controllers/AirsController.cs
     ErrorHandling/ApiExceptionHandler.cs
     Filters/FluentValidationActionFilter.cs
@@ -199,6 +202,9 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | DELETE | `/api/v1/pet/{id}/vaccinations/{vaccinationId}` | Delete a vaccination record (owner or admin) |
 | POST | `/api/v1/pet/{id}/vaccinations/import-airs` | Import vaccinations from AIRS by microchip (owner or admin) |
 | GET | `/api/v1/pet/vaccinations/due` | Vaccinations due for the current user's pets |
+| GET | `/api/v1/pet/{id}/reminders` | Vaccination reminder history for a pet (owner or admin, paginated) |
+| GET | `/api/v1/reminders` | Vaccination reminder history for the current user (paginated) |
+| POST | `/api/v1/reminders/run` | Run the vaccination reminder job immediately (admin only) |
 | PUT | `/api/v1/pet/{id}` | Update pet (owner or admin) |
 | DELETE | `/api/v1/pet/{id}` | Delete pet (owner or admin) |
 | GET | `/api/v1/pet/{id}/photos` | List pet photos (owner or admin) |
@@ -327,6 +333,27 @@ New vaccinations are rejected when the pet is deceased or when the previous vacc
 `GET /api/v1/pet/vaccinations/due?daysAhead=30` returns all vaccinations with `nextDueAt` up to the requested horizon for the current user's pets. `daysAhead` defaults to `30` and is clamped to `1..365`; overdue records are always included.
 
 `POST /api/v1/pet/{id}/vaccinations/import-airs` fetches the pet's AIRS record by microchip and imports vaccinations that are not stored yet. Records are deduplicated by AIRS vaccination id, so the endpoint is safe to call repeatedly. The response reports `imported` and `skipped` counts.
+
+### Vaccination reminders
+
+HappyPet sends email reminders before a vaccination becomes due. The default stages are **30, 7, 1 and 0 days** before `nextDueAt`; an overdue vaccination receives the `0` stage once. When a scheduled run is missed, only the closest applicable stage is sent instead of all skipped stages.
+
+Reminder rules:
+
+- only live pets with a non-null `nextDueAt` are considered;
+- the owner must have a verified email address;
+- one reminder is stored per vaccination, due date, stage and channel;
+- a sent reminder is never sent again for the same due date;
+- failed deliveries are retried up to `Reminders:MaxAttempts` (default `3`);
+- changing `nextDueAt` creates a new reminder set for the new due date;
+- deleting a vaccination cascades to its reminder history;
+- email content is plain text in Georgian and contains the pet name, vaccine, due date and remaining/overdue days.
+
+The scheduled job runs every day at `Reminders:RunHourLocal` (default `09:00`) in `Reminders:Timezone` (default `Asia/Tbilisi`). It is disabled in `appsettings.Development.json` to avoid accidental real emails during development. Set `Reminders:Enabled=true` to enable it.
+
+`GET /api/v1/reminders` returns the current user's reminder history. `GET /api/v1/pet/{id}/reminders` returns the history for one pet and is available to the owner or an admin. `POST /api/v1/reminders/run` runs the same job immediately and is restricted to admins; the response reports `candidates`, `sent`, `failed`, `skipped` and `retried` counts.
+
+SMS and mobile push notifications are not implemented yet; the channel is currently `Email` only. Configuration and operational details are in [docs/Reminders.md](docs/Reminders.md).
 
 ### Marketplace
 
@@ -514,7 +541,7 @@ Configuration:
 dotnet test
 ```
 
-The xUnit suite covers AIRS validation, pet creation/update rules, lost/found flows, vaccination records, marketplace listing rules, ownership transfers and operator processing, geo distance, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
+The xUnit suite covers AIRS validation, pet creation/update rules, lost/found flows, vaccination records, vaccination reminder stages and retries, marketplace listing rules, ownership transfers and operator processing, geo distance, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
 
 ## AIRS mock and microchip validation
 

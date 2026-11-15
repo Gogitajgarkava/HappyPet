@@ -178,6 +178,7 @@ if (reverseProxyEnabled)
 }
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+builder.Services.Configure<ReminderOptions>(builder.Configuration.GetSection("Reminders"));
 
 var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
 if (string.IsNullOrWhiteSpace(jwtOptions.Secret) || jwtOptions.Secret.Length < 32)
@@ -228,12 +229,14 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IPetRepository, PetRepository>();
 builder.Services.AddScoped<IVaccinationRepository, VaccinationRepository>();
 builder.Services.AddScoped<IMarketplaceRepository, MarketplaceRepository>();
+builder.Services.AddScoped<IReminderRepository, ReminderRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IUserServices, UserServices>();
 builder.Services.AddScoped<IPetService, PetService>();
 builder.Services.AddScoped<IVaccinationService, VaccinationService>();
 builder.Services.AddScoped<IMarketplaceService, MarketplaceService>();
 builder.Services.AddScoped<IOperatorService, OperatorService>();
+builder.Services.AddScoped<IReminderService, ReminderService>();
 builder.Services.AddSingleton<IFileStorageService, S3FileStorageService>();
 
 builder.Services.Configure<AirsOptions>(builder.Configuration.GetSection("Airs"));
@@ -284,6 +287,7 @@ builder.Services.AddScoped<ICodeGenerator, CodeGenerator>();
 builder.Services.AddScoped<IEmailSender, EmailSender>();
 builder.Services.AddHostedService<RefreshTokenCleanupService>();
 builder.Services.AddHostedService<MarketplaceExpiryService>();
+builder.Services.AddHostedService<VaccinationReminderBackgroundService>();
 
 
 var app = builder.Build();
