@@ -46,6 +46,8 @@ namespace HappyPet.Infrastructure.Persistence
                 entity.Property(p => p.LastSeenAddress).HasMaxLength(300);
                 entity.Property(p => p.ContactPhone).HasMaxLength(20);
                 entity.Property(p => p.DeathCause).HasMaxLength(250);
+                entity.Property(p => p.PublicProfileToken).HasMaxLength(64);
+                entity.HasIndex(p => p.PublicProfileToken).IsUnique();
                 entity.HasIndex(p => new { p.IsLost, p.LostAt });
 
                 entity.HasOne(p => p.Owner)

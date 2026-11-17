@@ -470,6 +470,138 @@ public class PetServiceTests
             }));
     }
 
+    [Fact]
+    public async Task SetPublicProfileAsync_WhenEnabling_GeneratesTokenAndSaves()
+    {
+        var pet = BuildPet();
+        _petRepository
+            .Setup(r => r.GetByIdAsync(pet.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pet);
+        _petRepository
+            .Setup(r => r.ExistsByPublicProfileTokenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var result = await CreateService().SetPublicProfileAsync(pet.Id, enabled: true);
+
+        Assert.True(result.IsEnabled);
+        Assert.False(string.IsNullOrWhiteSpace(result.Token));
+        Assert.Equal($"/api/v1/public/pets/{result.Token}", result.PublicProfilePath);
+        Assert.True(pet.IsPublicProfileEnabled);
+        Assert.Equal(result.Token, pet.PublicProfileToken);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetPublicProfileAsync_WhenTokenAlreadyExists_ReusesToken()
+    {
+        var pet = BuildPet();
+        pet.PublicProfileToken = "existing-token";
+        _petRepository
+            .Setup(r => r.GetByIdAsync(pet.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pet);
+
+        var result = await CreateService().SetPublicProfileAsync(pet.Id, enabled: true);
+
+        Assert.Equal("existing-token", result.Token);
+        _petRepository.Verify(
+            r => r.ExistsByPublicProfileTokenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetPublicProfileAsync_WhenDisabling_KeepsTokenAndSaves()
+    {
+        var pet = BuildPet();
+        pet.PublicProfileToken = "existing-token";
+        pet.IsPublicProfileEnabled = true;
+        _petRepository
+            .Setup(r => r.GetByIdAsync(pet.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pet);
+
+        var result = await CreateService().SetPublicProfileAsync(pet.Id, enabled: false);
+
+        Assert.False(result.IsEnabled);
+        Assert.Equal("existing-token", result.Token);
+        Assert.False(pet.IsPublicProfileEnabled);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetPublicProfileAsync_WhenDisabled_ReturnsNull()
+    {
+        var pet = BuildPet();
+        pet.PublicProfileToken = "existing-token";
+        pet.IsPublicProfileEnabled = false;
+        _petRepository
+            .Setup(r => r.GetByPublicProfileTokenAsync("existing-token", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pet);
+
+        var result = await CreateService().GetPublicProfileAsync("existing-token");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetPublicProfileAsync_ReturnsSafeProjectionAndVaccinationSummary()
+    {
+        var pet = BuildPet();
+        pet.PublicProfileToken = "existing-token";
+        pet.IsPublicProfileEnabled = true;
+        pet.IsLost = true;
+        pet.ContactPhone = "+995555000111";
+        pet.LastSeenAddress = "ვაკე, თბილისი";
+        pet.Photos.Add(new PetPhoto
+        {
+            Id = 1,
+            PetId = pet.Id,
+            Key = "pets/7/photo.jpg",
+            ContentType = "image/jpeg",
+            SizeBytes = 10,
+            IsPrimary = true,
+            CreatedAt = DateTime.UtcNow.AddDays(-1)
+        });
+        pet.Vaccinations.Add(new Vaccination
+        {
+            Id = 1,
+            PetId = pet.Id,
+            VaccineName = "Rabies",
+            VaccinatedAt = DateTime.UtcNow.AddMonths(-11),
+            NextDueAt = DateTime.UtcNow.AddDays(-2)
+        });
+
+        _petRepository
+            .Setup(r => r.GetByPublicProfileTokenAsync("existing-token", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pet);
+        _fileStorage
+            .Setup(f => f.GetUrl("pets/7/photo.jpg"))
+            .Returns("https://cdn.example.com/pets/7/photo.jpg");
+
+        var result = await CreateService().GetPublicProfileAsync("existing-token");
+
+        Assert.NotNull(result);
+        Assert.Equal(pet.Name, result!.Name);
+        Assert.Equal("+995555000111", result.ContactPhone);
+        Assert.Equal("ვაკე, თბილისი", result.LastSeenAddress);
+        Assert.Single(result.Photos);
+        Assert.Equal("https://cdn.example.com/pets/7/photo.jpg", result.Photos[0].Url);
+        Assert.True(result.Vaccinations.IsVaccinated);
+        Assert.Equal(1, result.Vaccinations.Count);
+        Assert.True(result.Vaccinations.IsOverdue);
+    }
+
+    [Fact]
+    public async Task GetPublicProfileAsync_WhenTokenDoesNotExist_ReturnsNull()
+    {
+        _petRepository
+            .Setup(r => r.GetByPublicProfileTokenAsync("missing", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Pet?)null);
+
+        var result = await CreateService().GetPublicProfileAsync("missing");
+
+        Assert.Null(result);
+    }
+
     private static CreatePetRequest BuildCreateRequest(string microchip = "")
     {
         return new CreatePetRequest

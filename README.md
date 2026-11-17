@@ -34,9 +34,11 @@ src/
     Services/ReminderService.cs
     Services/AirsService.cs
     Common/GeoDistance.cs  # Haversine distance and bounding box helpers
+    Interfaces/Code/IQrCodeGenerator.cs
     Validators/            # FluentValidation rules for every request DTO
   HappyPet.Infrastructure/  # EF Core, PostgreSQL, security, S3 storage, repositories
     Airs/AirsClient.cs
+    Code/QrCodeGenerator.cs
     Persistence/HappyPetDbContext.cs
     Persistence/Repositories/
     Securuty/PasswordHasher.cs
@@ -46,6 +48,7 @@ src/
     Controllers/AuthController.cs
     Controllers/UserControler.cs
     Controllers/PetController.cs
+    Controllers/PublicPetController.cs
     Controllers/MarketplaceController.cs
     Controllers/OperatorController.cs
     Controllers/ReminderController.cs
@@ -170,7 +173,7 @@ docker compose -f airs-mock/docker-compose.yml down -v   # also removes mocked A
 
 ## API
 
-All endpoints are under `/api/v1`. Registration, login, email verification, password recovery, the public lost-pet search and public marketplace listings are public; every other endpoint requires `Authorization: Bearer <token>`.
+All endpoints are under `/api/v1`. Registration, login, email verification, password recovery, the public lost-pet search, public marketplace listings and public pet profiles are public; every other endpoint requires `Authorization: Bearer <token>`.
 
 Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api/v1/pet/1`, `/api/v1/pet/1/photos/2`.
 
@@ -211,6 +214,10 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | POST | `/api/v1/pet/{id}/photos` | Upload a pet photo, `multipart/form-data`, max 5 MB (owner or admin) |
 | PUT | `/api/v1/pet/{id}/photos/{photoId}/primary` | Set the primary pet photo (owner or admin) |
 | DELETE | `/api/v1/pet/{id}/photos/{photoId}` | Delete a pet photo (owner or admin) |
+| GET | `/api/v1/pet/{id}/public-profile` | Get public-profile settings (owner or admin) |
+| PUT | `/api/v1/pet/{id}/public-profile` | Enable or disable the public profile (owner or admin) |
+| GET | `/api/v1/pet/{id}/qr` | Download a PNG QR code for the public profile (owner or admin) |
+| GET | `/api/v1/public/pets/{token}` | Public pet profile (anonymous, rate-limited) |
 | POST | `/api/v1/marketplace/listings` | Publish a pet sale or giveaway listing |
 | GET | `/api/v1/marketplace/listings` | Public marketplace search (paginated) |
 | GET | `/api/v1/marketplace/listings/{id}` | Public listing details |
@@ -304,6 +311,24 @@ Pets can be marked as deceased with `POST /api/v1/pet/{id}/deceased`:
 ```
 
 Both fields are optional; `deceasedAt` defaults to the current time, cannot be in the future and cannot be earlier than the pet's birth date. Death is irreversible in the API: repeated calls are idempotent and do not overwrite the first record. The response includes `isDeceased`, `deceasedAt` and `deathCause`. Pet create/update requests accept `size` (`Small`, `Medium`, `Large`), `isSterilized` and `sterilizedAt`.
+
+### Public pet profile and QR
+
+An owner or admin can expose a privacy-safe public profile for a pet:
+
+```json
+PUT /api/v1/pet/7/public-profile
+{
+  "enabled": true
+}
+```
+
+The first enable generates a cryptographically random public token. Re-enabling keeps the same token, so an already printed QR code continues to work. Disabling the profile makes the public endpoint return `404` without deleting the token.
+
+- `GET /api/v1/pet/{id}/public-profile` returns `isEnabled`, `token`, `publicProfilePath` and an absolute `publicProfileUrl`.
+- `GET /api/v1/pet/{id}/qr` returns `image/png` containing the public-profile URL.
+- `GET /api/v1/public/pets/{token}` is anonymous and rate-limited. It returns only safe fields: name, species, breed, gender, birth date, color, marks, size, sterilization status, lost/deceased status, last-seen address, photos and a vaccination summary. Owner data, microchip number, exact coordinates and death cause are never exposed. `contactPhone` is included only while the pet is marked as lost.
+- The QR currently targets the API public-profile URL. A future frontend can render a richer public page behind the same token or point the QR to its own route.
 
 ### Vaccinations
 
@@ -513,6 +538,7 @@ Authentication endpoints are protected per client IP with fixed-window rate limi
 | `POST /api/v1/auth/resend-verification` | `auth-otp` | 10 requests per 10 minutes |
 | `POST /api/v1/auth/forgot-password` | `auth-otp` | 10 requests per 10 minutes |
 | `POST /api/v1/auth/reset-password` | `auth-otp` | 10 requests per 10 minutes |
+| `GET /api/v1/public/pets/{token}` | `public-profile` | 60 requests per minute per client IP |
 
 When the limit is exceeded the API returns `429` with the standard error envelope and a `Retry-After` header:
 
@@ -532,6 +558,8 @@ Configuration:
 | `RateLimiting:LoginWindowMinutes` | `5` | Login window length |
 | `RateLimiting:OtpPermitLimit` | `10` | OTP requests allowed per window |
 | `RateLimiting:OtpWindowMinutes` | `10` | OTP window length |
+| `RateLimiting:PublicProfilePermitLimit` | `60` | Public-profile requests allowed per window |
+| `RateLimiting:PublicProfileWindowMinutes` | `1` | Public-profile window length |
 
 > Behind Caddy, `ForwardedHeaders` must be enabled (it is when `ReverseProxy:Enabled=true`) so limits are applied to the real client IP rather than the proxy.
 
@@ -541,7 +569,7 @@ Configuration:
 dotnet test
 ```
 
-The xUnit suite covers AIRS validation, pet creation/update rules, lost/found flows, vaccination records, vaccination reminder stages and retries, marketplace listing rules, ownership transfers and operator processing, geo distance, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
+The xUnit suite covers AIRS validation, pet creation/update rules, lost/found flows, public-profile tokens and privacy projection, QR PNG generation, vaccination records, vaccination reminder stages and retries, marketplace listing rules, ownership transfers and operator processing, geo distance, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
 
 ## AIRS mock and microchip validation
 

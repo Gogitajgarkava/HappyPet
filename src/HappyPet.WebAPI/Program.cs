@@ -12,6 +12,7 @@ using HappyPet.Application.Options;
 using HappyPet.Application.Services;
 using HappyPet.Application.Validators;
 using HappyPet.Infrastructure.Airs;
+using HappyPet.Infrastructure.Code;
 using HappyPet.Infrastructure.ExentialServices;
 using HappyPet.Infrastructure.Persistence;
 using HappyPet.Infrastructure.Persistence.Repositories;
@@ -118,6 +119,8 @@ var loginPermitLimit = GetPositiveInt("RateLimiting:LoginPermitLimit", 10);
 var loginWindowMinutes = GetPositiveInt("RateLimiting:LoginWindowMinutes", 5);
 var otpPermitLimit = GetPositiveInt("RateLimiting:OtpPermitLimit", 10);
 var otpWindowMinutes = GetPositiveInt("RateLimiting:OtpWindowMinutes", 10);
+var publicProfilePermitLimit = GetPositiveInt("RateLimiting:PublicProfilePermitLimit", 60);
+var publicProfileWindowMinutes = GetPositiveInt("RateLimiting:PublicProfileWindowMinutes", 1);
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -163,6 +166,16 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = otpPermitLimit,
                 Window = TimeSpan.FromMinutes(otpWindowMinutes),
+                QueueLimit = 0
+            }));
+
+    options.AddPolicy("public-profile", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            GetClientKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = publicProfilePermitLimit,
+                Window = TimeSpan.FromMinutes(publicProfileWindowMinutes),
                 QueueLimit = 0
             }));
 });
@@ -238,6 +251,7 @@ builder.Services.AddScoped<IMarketplaceService, MarketplaceService>();
 builder.Services.AddScoped<IOperatorService, OperatorService>();
 builder.Services.AddScoped<IReminderService, ReminderService>();
 builder.Services.AddSingleton<IFileStorageService, S3FileStorageService>();
+builder.Services.AddSingleton<IQrCodeGenerator, QrCodeGenerator>();
 
 builder.Services.Configure<AirsOptions>(builder.Configuration.GetSection("Airs"));
 var airsBaseUrl = builder.Configuration["Airs:BaseUrl"];

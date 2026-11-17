@@ -21,6 +21,9 @@ namespace HappyPet.Application.Interfaces.Services
         Task<PetResponse> UpdateAsync(int id, UpdatePetRequest request, CancellationToken cancellationToken = default);
         Task DeleteAsync(int id, CancellationToken cancellationToken = default);
 
+        Task<PublicProfileResponse> SetPublicProfileAsync(int petId, bool enabled, CancellationToken cancellationToken = default);
+        Task<PublicPetProfileResponse?> GetPublicProfileAsync(string token, CancellationToken cancellationToken = default);
+
         Task<List<PetPhotoResponse>> GetPhotosAsync(int petId, CancellationToken cancellationToken = default);
         Task<PetPhotoResponse> AddPhotoAsync(int petId, Stream stream, long length, string contentType, CancellationToken cancellationToken = default);
         Task<PetPhotoResponse> SetPrimaryPhotoAsync(int petId, int photoId, CancellationToken cancellationToken = default);

@@ -28,6 +28,8 @@ namespace HappyPet.Application.Dtos.Responses
         public double? LastSeenLongitude { get; set; }
         public string? LastSeenAddress { get; set; }
         public string? ContactPhone { get; set; }
+        public string? PublicProfileToken { get; set; }
+        public bool IsPublicProfileEnabled { get; set; }
         public DateTime CreatedAt { get; set; }
         public List<PetPhotoResponse> Photos { get; set; } = new();
     }

@@ -36,6 +36,9 @@ namespace HappyPet.Domain.Entities
         public string? LastSeenAddress { get; set; }
         public string? ContactPhone { get; set; }
 
+        public string? PublicProfileToken { get; set; }
+        public bool IsPublicProfileEnabled { get; set; }
+
         public User Owner { get; set; } = null!;
         public ICollection<PetPhoto> Photos { get; set; } = new List<PetPhoto>();
         public ICollection<Vaccination> Vaccinations { get; set; } = new List<Vaccination>();

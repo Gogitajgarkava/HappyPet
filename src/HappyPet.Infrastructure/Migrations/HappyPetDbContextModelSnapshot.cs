@@ -323,6 +323,9 @@ namespace HappyPet.Infrastructure.Migrations
                     b.Property<bool>("IsLost")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsPublicProfileEnabled")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsSterilized")
                         .HasColumnType("boolean");
 
@@ -355,6 +358,10 @@ namespace HappyPet.Infrastructure.Migrations
                     b.Property<int>("OwnerId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("PublicProfileToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<int?>("Size")
                         .HasColumnType("integer");
 
@@ -374,6 +381,9 @@ namespace HappyPet.Infrastructure.Migrations
                         .HasFilter("\"MicrochipNumber\" <> ''");
 
                     b.HasIndex("OwnerId");
+
+                    b.HasIndex("PublicProfileToken")
+                        .IsUnique();
 
                     b.HasIndex("IsLost", "LostAt");
 

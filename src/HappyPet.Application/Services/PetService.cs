@@ -8,6 +8,7 @@ using HappyPet.Domain.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -21,6 +22,9 @@ namespace HappyPet.Application.Services
         private const int MaxPageSize = 100;
         private const double DefaultRadiusKm = 25;
         private const double MaxRadiusKm = 100;
+        private const int PublicProfileTokenBytes = 32;
+        private const int PublicProfileTokenAttempts = 5;
+        private const string PublicProfilePathPrefix = "/api/v1/public/pets";
 
         private static readonly Dictionary<string, string> AllowedImageTypes = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -346,6 +350,54 @@ namespace HappyPet.Application.Services
             await _unitOfWork.SaveChangesAsync();
         }
 
+        public async Task<PublicProfileResponse> SetPublicProfileAsync(
+            int petId,
+            bool enabled,
+            CancellationToken cancellationToken = default)
+        {
+            var pet = await _petRepository.GetByIdAsync(petId, cancellationToken);
+            if (pet == null)
+            {
+                throw new KeyNotFoundException("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (enabled && string.IsNullOrWhiteSpace(pet.PublicProfileToken))
+            {
+                pet.PublicProfileToken = await GenerateUniquePublicProfileTokenAsync(cancellationToken);
+            }
+
+            pet.IsPublicProfileEnabled = enabled;
+            pet.UpdatedAt = DateTime.UtcNow;
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return new PublicProfileResponse
+            {
+                PetId = pet.Id,
+                IsEnabled = pet.IsPublicProfileEnabled,
+                Token = pet.PublicProfileToken,
+                PublicProfilePath = BuildPublicProfilePath(pet.PublicProfileToken)
+            };
+        }
+
+        public async Task<PublicPetProfileResponse?> GetPublicProfileAsync(
+            string token,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return null;
+            }
+
+            var pet = await _petRepository.GetByPublicProfileTokenAsync(token.Trim(), cancellationToken);
+            if (pet == null || !pet.IsPublicProfileEnabled)
+            {
+                return null;
+            }
+
+            return MapToPublicProfileResponse(pet);
+        }
+
         public async Task<List<PetPhotoResponse>> GetPhotosAsync(int petId, CancellationToken cancellationToken = default)
         {
             var pet = await _petRepository.GetByIdAsync(petId, cancellationToken);
@@ -486,6 +538,86 @@ namespace HappyPet.Application.Services
             }
         }
 
+        private async Task<string> GenerateUniquePublicProfileTokenAsync(CancellationToken cancellationToken)
+        {
+            for (var attempt = 0; attempt < PublicProfileTokenAttempts; attempt++)
+            {
+                var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(PublicProfileTokenBytes))
+                    .TrimEnd('=')
+                    .Replace('+', '-')
+                    .Replace('/', '_');
+
+                if (!await _petRepository.ExistsByPublicProfileTokenAsync(token, cancellationToken))
+                {
+                    return token;
+                }
+            }
+
+            throw new InvalidOperationException("საჯარო პროფილის უნიკალური ტოკენის შექმნა ვერ მოხერხდა. სცადეთ ხელახლა.");
+        }
+
+        private static string? BuildPublicProfilePath(string? token)
+        {
+            return string.IsNullOrWhiteSpace(token)
+                ? null
+                : $"{PublicProfilePathPrefix}/{token}";
+        }
+
+        private PublicPetProfileResponse MapToPublicProfileResponse(Pet pet)
+        {
+            var vaccinationCount = pet.Vaccinations.Count;
+            var lastVaccination = pet.Vaccinations
+                .OrderByDescending(v => v.VaccinatedAt)
+                .FirstOrDefault();
+            var nextDueAt = pet.Vaccinations
+                .Where(v => v.NextDueAt.HasValue)
+                .Select(v => v.NextDueAt)
+                .OrderBy(v => v)
+                .FirstOrDefault();
+
+            return new PublicPetProfileResponse
+            {
+                Name = pet.Name,
+                Species = pet.Species,
+                Breed = pet.Breed,
+                Gender = pet.Gender,
+                BirthDate = pet.BirthDate,
+                Color = pet.Color,
+                DistinguishingMarks = pet.DistinguishingMarks,
+                Size = pet.Size,
+                IsSterilized = pet.IsSterilized,
+                IsLost = pet.IsLost,
+                LostAt = pet.LostAt,
+                LastSeenAt = pet.LastSeenAt,
+                LastSeenAddress = pet.LastSeenAddress,
+                ContactPhone = pet.IsLost ? pet.ContactPhone : null,
+                IsDeceased = pet.IsDeceased,
+                DeceasedAt = pet.DeceasedAt,
+                Photos = pet.Photos
+                    .OrderByDescending(p => p.IsPrimary)
+                    .ThenBy(p => p.CreatedAt)
+                    .Select(MapPublicPhoto)
+                    .ToList(),
+                Vaccinations = new PublicVaccinationSummary
+                {
+                    IsVaccinated = vaccinationCount > 0,
+                    Count = vaccinationCount,
+                    LastVaccinatedAt = lastVaccination?.VaccinatedAt,
+                    NextDueAt = nextDueAt,
+                    IsOverdue = nextDueAt.HasValue && nextDueAt.Value.Date < DateTime.UtcNow.Date
+                }
+            };
+        }
+
+        private PublicPetPhotoResponse MapPublicPhoto(PetPhoto photo)
+        {
+            return new PublicPetPhotoResponse
+            {
+                Url = _fileStorage.GetUrl(photo.Key),
+                IsPrimary = photo.IsPrimary
+            };
+        }
+
         private async Task EnsureMicrochipCanBeRegisteredAsync(
             int ownerId,
             string microchipNumber,
@@ -604,6 +736,8 @@ namespace HappyPet.Application.Services
                 LastSeenLongitude = pet.LastSeenLongitude,
                 LastSeenAddress = pet.LastSeenAddress,
                 ContactPhone = pet.ContactPhone,
+                PublicProfileToken = pet.PublicProfileToken,
+                IsPublicProfileEnabled = pet.IsPublicProfileEnabled,
                 CreatedAt = pet.CreatedAt,
                 Photos = pet.Photos
                     .OrderByDescending(p => p.IsPrimary)

@@ -40,6 +40,23 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
+        public async Task<Pet?> GetByPublicProfileTokenAsync(string token, CancellationToken cancellationToken = default)
+        {
+            return await _context.Pets
+                .AsNoTracking()
+                .Include(p => p.Photos)
+                .Include(p => p.Vaccinations)
+                .FirstOrDefaultAsync(
+                    p => p.PublicProfileToken == token && p.IsPublicProfileEnabled,
+                    cancellationToken);
+        }
+
+        public async Task<bool> ExistsByPublicProfileTokenAsync(string token, CancellationToken cancellationToken = default)
+        {
+            return await _context.Pets
+                .AnyAsync(p => p.PublicProfileToken == token, cancellationToken);
+        }
+
         public async Task<(List<Pet> Items, int TotalCount)> GetByOwnerIdPagedAsync(
             int ownerId,
             int skip,

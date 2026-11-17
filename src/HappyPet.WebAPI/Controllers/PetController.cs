@@ -1,4 +1,6 @@
 using HappyPet.Application.Dtos.Requests;
+using HappyPet.Application.Dtos.Responses;
+using HappyPet.Application.Interfaces.Code;
 using HappyPet.Application.Interfaces.Services;
 using HappyPet.Domain.Enums;
 using HappyPet.WebAPI.Models;
@@ -16,15 +18,18 @@ namespace HappyPet.WebAPI.Controllers
         private readonly IPetService _petService;
         private readonly IVaccinationService _vaccinationService;
         private readonly IReminderService _reminderService;
+        private readonly IQrCodeGenerator _qrCodeGenerator;
 
         public PetController(
             IPetService petService,
             IVaccinationService vaccinationService,
-            IReminderService reminderService)
+            IReminderService reminderService,
+            IQrCodeGenerator qrCodeGenerator)
         {
             _petService = petService;
             _vaccinationService = vaccinationService;
             _reminderService = reminderService;
+            _qrCodeGenerator = qrCodeGenerator;
         }
 
         [HttpPost("add-pet")]
@@ -392,6 +397,72 @@ namespace HappyPet.WebAPI.Controllers
             return NoContent();
         }
 
+        [HttpGet("{id:int}/public-profile")]
+        public async Task<IActionResult> GetPublicProfileSettings(int id, CancellationToken cancellationToken)
+        {
+            var pet = await _petService.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (!CanAccess(pet.OwnerId))
+            {
+                return Forbid();
+            }
+
+            return Ok(BuildPublicProfileResponse(pet));
+        }
+
+        [HttpPut("{id:int}/public-profile")]
+        public async Task<IActionResult> SetPublicProfile(
+            int id,
+            [FromBody] UpdatePublicProfileRequest request,
+            CancellationToken cancellationToken)
+        {
+            var pet = await _petService.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (!CanAccess(pet.OwnerId))
+            {
+                return Forbid();
+            }
+
+            var result = await _petService.SetPublicProfileAsync(id, request.Enabled, cancellationToken);
+            result.PublicProfileUrl = BuildPublicProfileUrl(result.Token);
+            return Ok(result);
+        }
+
+        [HttpGet("{id:int}/qr")]
+        public async Task<IActionResult> GetPetQrCode(int id, CancellationToken cancellationToken)
+        {
+            var pet = await _petService.GetByIdAsync(id, cancellationToken);
+            if (pet == null)
+            {
+                return NotFoundError("ცხოველი ვერ მოიძებნა.");
+            }
+
+            if (!CanAccess(pet.OwnerId))
+            {
+                return Forbid();
+            }
+
+            if (!pet.IsPublicProfileEnabled || string.IsNullOrWhiteSpace(pet.PublicProfileToken))
+            {
+                return BadRequestError(
+                    "PUBLIC_PROFILE_DISABLED",
+                    "საჯარო პროფილი გამორთულია. ჯერ ჩართეთ საჯარო პროფილი.");
+            }
+
+            var publicProfileUrl = BuildPublicProfileUrl(pet.PublicProfileToken)!;
+            var png = _qrCodeGenerator.GeneratePng(publicProfileUrl);
+
+            return File(png, "image/png", $"pet-{id}-qr.png");
+        }
+
         [HttpPut("{id:int}")]
         public async Task<IActionResult> UpdatePet(int id, [FromBody] UpdatePetRequest request, CancellationToken cancellationToken)
         {
@@ -426,6 +497,29 @@ namespace HappyPet.WebAPI.Controllers
 
             await _petService.DeleteAsync(id, cancellationToken);
             return NoContent();
+        }
+
+        private PublicProfileResponse BuildPublicProfileResponse(PetResponse pet)
+        {
+            var path = string.IsNullOrWhiteSpace(pet.PublicProfileToken)
+                ? null
+                : $"/api/v1/public/pets/{pet.PublicProfileToken}";
+
+            return new PublicProfileResponse
+            {
+                PetId = pet.Id,
+                IsEnabled = pet.IsPublicProfileEnabled,
+                Token = pet.PublicProfileToken,
+                PublicProfilePath = path,
+                PublicProfileUrl = BuildPublicProfileUrl(pet.PublicProfileToken)
+            };
+        }
+
+        private string? BuildPublicProfileUrl(string? token)
+        {
+            return string.IsNullOrWhiteSpace(token)
+                ? null
+                : $"{Request.Scheme}://{Request.Host}/api/v1/public/pets/{token}";
         }
 
         private NotFoundObjectResult NotFoundError(string message)
