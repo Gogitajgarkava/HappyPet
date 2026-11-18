@@ -16,6 +16,9 @@ namespace HappyPet.Infrastructure.Persistence
         public DbSet<MarketplaceListingPhoto> MarketplaceListingPhotos => Set<MarketplaceListingPhoto>();
         public DbSet<OwnershipTransfer> OwnershipTransfers => Set<OwnershipTransfer>();
         public DbSet<VaccinationReminder> VaccinationReminders => Set<VaccinationReminder>();
+        public DbSet<ShelterProfile> ShelterProfiles => Set<ShelterProfile>();
+        public DbSet<AdoptionListing> AdoptionListings => Set<AdoptionListing>();
+        public DbSet<AdoptionApplication> AdoptionApplications => Set<AdoptionApplication>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -204,6 +207,77 @@ namespace HappyPet.Infrastructure.Persistence
                 entity.HasOne(t => t.Listing)
                     .WithOne(l => l.OwnershipTransfer)
                     .HasForeignKey<OwnershipTransfer>(t => t.ListingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ShelterProfile>(entity =>
+            {
+                entity.HasKey(s => s.Id);
+                entity.HasIndex(s => s.UserId).IsUnique();
+                entity.HasIndex(s => s.City);
+                entity.HasIndex(s => s.IsVerified);
+                entity.HasIndex(s => s.RegistrationNumber)
+                    .IsUnique()
+                    .HasFilter("\"RegistrationNumber\" IS NOT NULL");
+                entity.Property(s => s.OrganizationName).IsRequired().HasMaxLength(200);
+                entity.Property(s => s.RegistrationNumber).HasMaxLength(50);
+                entity.Property(s => s.Description).HasMaxLength(2000);
+                entity.Property(s => s.City).IsRequired().HasMaxLength(100);
+                entity.Property(s => s.Address).HasMaxLength(300);
+                entity.Property(s => s.PhoneNumber).IsRequired().HasMaxLength(20);
+                entity.Property(s => s.Email).HasMaxLength(100);
+                entity.Property(s => s.Website).HasMaxLength(200);
+
+                entity.HasOne(s => s.User)
+                    .WithOne(u => u.ShelterProfile)
+                    .HasForeignKey<ShelterProfile>(s => s.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<AdoptionListing>(entity =>
+            {
+                entity.HasKey(l => l.Id);
+                entity.HasIndex(l => new { l.Status, l.City });
+                entity.HasIndex(l => l.ShelterId);
+                entity.HasIndex(l => l.PetId);
+                entity.HasIndex(l => l.PublishedAt);
+                entity.Property(l => l.Description).HasMaxLength(2000);
+                entity.Property(l => l.City).IsRequired().HasMaxLength(100);
+                entity.Property(l => l.AdoptionFee).HasPrecision(18, 2);
+                entity.Property(l => l.PublishedAt).IsRequired();
+
+                entity.HasOne(l => l.Shelter)
+                    .WithMany()
+                    .HasForeignKey(l => l.ShelterId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(l => l.Pet)
+                    .WithMany()
+                    .HasForeignKey(l => l.PetId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<AdoptionApplication>(entity =>
+            {
+                entity.HasKey(a => a.Id);
+                entity.HasIndex(a => new { a.ListingId, a.ApplicantUserId }).IsUnique();
+                entity.HasIndex(a => new { a.ListingId, a.Status });
+                entity.HasIndex(a => new { a.ApplicantUserId, a.CreatedAt });
+                entity.Property(a => a.FullName).IsRequired().HasMaxLength(100);
+                entity.Property(a => a.Email).IsRequired().HasMaxLength(100);
+                entity.Property(a => a.Phone).IsRequired().HasMaxLength(20);
+                entity.Property(a => a.Address).HasMaxLength(300);
+                entity.Property(a => a.Message).HasMaxLength(2000);
+                entity.Property(a => a.DecisionNote).HasMaxLength(500);
+
+                entity.HasOne(a => a.Listing)
+                    .WithMany(l => l.Applications)
+                    .HasForeignKey(a => a.ListingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(a => a.Applicant)
+                    .WithMany()
+                    .HasForeignKey(a => a.ApplicantUserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
         }

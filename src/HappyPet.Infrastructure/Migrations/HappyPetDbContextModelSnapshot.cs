@@ -22,6 +22,135 @@ namespace HappyPet.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("HappyPet.Domain.Entities.AdoptionApplication", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<int>("ApplicantUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("ListingId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ReviewedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("WithdrawnAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicantUserId", "CreatedAt");
+
+                    b.HasIndex("ListingId", "ApplicantUserId")
+                        .IsUnique();
+
+                    b.HasIndex("ListingId", "Status");
+
+                    b.ToTable("AdoptionApplications");
+                });
+
+            modelBuilder.Entity("HappyPet.Domain.Entities.AdoptionListing", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal?>("AdoptionFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsUrgent")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("PetId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ShelterId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PetId");
+
+                    b.HasIndex("PublishedAt");
+
+                    b.HasIndex("ShelterId");
+
+                    b.HasIndex("Status", "City");
+
+                    b.ToTable("AdoptionListings");
+                });
+
             modelBuilder.Entity("HappyPet.Domain.Entities.MarketplaceListing", b =>
                 {
                     b.Property<int>("Id")
@@ -481,6 +610,86 @@ namespace HappyPet.Infrastructure.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
+            modelBuilder.Entity("HappyPet.Domain.Entities.ShelterProfile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsAcceptingApplications")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("OrganizationName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PhoneNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("RegistrationNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("VerifiedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("City");
+
+                    b.HasIndex("IsVerified");
+
+                    b.HasIndex("RegistrationNumber")
+                        .IsUnique()
+                        .HasFilter("\"RegistrationNumber\" IS NOT NULL");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("ShelterProfiles");
+                });
+
             modelBuilder.Entity("HappyPet.Domain.Entities.User", b =>
                 {
                     b.Property<int>("Id")
@@ -755,6 +964,44 @@ namespace HappyPet.Infrastructure.Migrations
                     b.ToTable("VaccinationReminders");
                 });
 
+            modelBuilder.Entity("HappyPet.Domain.Entities.AdoptionApplication", b =>
+                {
+                    b.HasOne("HappyPet.Domain.Entities.User", "Applicant")
+                        .WithMany()
+                        .HasForeignKey("ApplicantUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HappyPet.Domain.Entities.AdoptionListing", "Listing")
+                        .WithMany("Applications")
+                        .HasForeignKey("ListingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Applicant");
+
+                    b.Navigation("Listing");
+                });
+
+            modelBuilder.Entity("HappyPet.Domain.Entities.AdoptionListing", b =>
+                {
+                    b.HasOne("HappyPet.Domain.Entities.Pet", "Pet")
+                        .WithMany()
+                        .HasForeignKey("PetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HappyPet.Domain.Entities.User", "Shelter")
+                        .WithMany()
+                        .HasForeignKey("ShelterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Pet");
+
+                    b.Navigation("Shelter");
+                });
+
             modelBuilder.Entity("HappyPet.Domain.Entities.MarketplaceListing", b =>
                 {
                     b.HasOne("HappyPet.Domain.Entities.Pet", "Pet")
@@ -828,6 +1075,17 @@ namespace HappyPet.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("HappyPet.Domain.Entities.ShelterProfile", b =>
+                {
+                    b.HasOne("HappyPet.Domain.Entities.User", "User")
+                        .WithOne("ShelterProfile")
+                        .HasForeignKey("HappyPet.Domain.Entities.ShelterProfile", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("HappyPet.Domain.Entities.UserOtpCode", b =>
                 {
                     b.HasOne("HappyPet.Domain.Entities.User", "User")
@@ -861,6 +1119,11 @@ namespace HappyPet.Infrastructure.Migrations
                     b.Navigation("Vaccination");
                 });
 
+            modelBuilder.Entity("HappyPet.Domain.Entities.AdoptionListing", b =>
+                {
+                    b.Navigation("Applications");
+                });
+
             modelBuilder.Entity("HappyPet.Domain.Entities.MarketplaceListing", b =>
                 {
                     b.Navigation("OwnershipTransfer");
@@ -882,6 +1145,8 @@ namespace HappyPet.Infrastructure.Migrations
                     b.Navigation("Pets");
 
                     b.Navigation("RefreshTokens");
+
+                    b.Navigation("ShelterProfile");
                 });
 #pragma warning restore 612, 618
         }

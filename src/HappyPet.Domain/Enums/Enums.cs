@@ -89,4 +89,21 @@ namespace HappyPet.Domain.Enums
         EmailVerification = 1,
         PasswordReset = 2
     }
+
+    public enum AdoptionListingStatus
+    {
+        Active = 1,
+        Paused = 2,
+        Adopted = 3,
+        Withdrawn = 4
+    }
+
+    public enum AdoptionApplicationStatus
+    {
+        Pending = 1,
+        Approved = 2,
+        Rejected = 3,
+        Withdrawn = 4,
+        Completed = 5
+    }
 }

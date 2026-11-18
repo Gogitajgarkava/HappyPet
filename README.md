@@ -19,6 +19,9 @@ src/
     Entities/MarketplaceListingPhoto.cs
     Entities/OwnershipTransfer.cs
     Entities/VaccinationReminder.cs
+    Entities/ShelterProfile.cs
+    Entities/AdoptionListing.cs
+    Entities/AdoptionApplication.cs
     Enums/Enums.cs
   HappyPet.Application/     # Use cases, interfaces, DTOs, validation
     Dtos/Requests/
@@ -32,6 +35,8 @@ src/
     Services/MarketplaceService.cs
     Services/OperatorService.cs
     Services/ReminderService.cs
+    Services/ShelterService.cs
+    Services/AdoptionService.cs
     Services/AirsService.cs
     Common/GeoDistance.cs  # Haversine distance and bounding box helpers
     Interfaces/Code/IQrCodeGenerator.cs
@@ -50,6 +55,8 @@ src/
     Controllers/PetController.cs
     Controllers/PublicPetController.cs
     Controllers/MarketplaceController.cs
+    Controllers/ShelterController.cs
+    Controllers/AdoptionController.cs
     Controllers/OperatorController.cs
     Controllers/ReminderController.cs
     Controllers/AirsController.cs
@@ -173,7 +180,7 @@ docker compose -f airs-mock/docker-compose.yml down -v   # also removes mocked A
 
 ## API
 
-All endpoints are under `/api/v1`. Registration, login, email verification, password recovery, the public lost-pet search, public marketplace listings and public pet profiles are public; every other endpoint requires `Authorization: Bearer <token>`.
+All endpoints are under `/api/v1`. Registration, login, email verification, password recovery, the public lost-pet search, public marketplace listings, public pet profiles and the public shelter/adoption catalogue are public; every other endpoint requires `Authorization: Bearer <token>`.
 
 Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api/v1/pet/1`, `/api/v1/pet/1/photos/2`.
 
@@ -231,6 +238,32 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | POST | `/api/v1/marketplace/listings/{id}/photos` | Upload a listing photo, `multipart/form-data`, max 5 MB (owner or admin) |
 | PUT | `/api/v1/marketplace/listings/{id}/photos/{photoId}/primary` | Set the primary listing photo (owner or admin) |
 | DELETE | `/api/v1/marketplace/listings/{id}/photos/{photoId}` | Delete a listing photo (owner or admin) |
+| GET | `/api/v1/shelters` | Public list of verified shelters (paginated) |
+| GET | `/api/v1/shelters/{id}` | Public shelter profile |
+| GET | `/api/v1/shelters/me` | Current shelter's organisation profile |
+| PUT | `/api/v1/shelters/me` | Create or update the current shelter's organisation profile |
+| GET | `/api/v1/shelters/me/dashboard` | Shelter listing and application counts |
+| GET | `/api/v1/shelters/admin/dashboard` | Global shelter and adoption counts (admin only) |
+| GET | `/api/v1/shelters/admin/list` | List shelter profiles, optionally filtered by verification (admin only) |
+| POST | `/api/v1/shelters/admin/users/{userId}/grant-shelter` | Promote a user to the Shelter role so they can create a profile (admin only) |
+| POST | `/api/v1/shelters/{id}/verify` | Verify a shelter profile (admin only) |
+| POST | `/api/v1/shelters/{id}/unverify` | Revoke a shelter verification (admin only) |
+| GET | `/api/v1/adoptions/listings` | Public search of active adoption listings (paginated) |
+| GET | `/api/v1/adoptions/listings/{id}` | Public adoption listing details |
+| POST | `/api/v1/adoptions/listings` | Publish one of the shelter's pets for adoption (shelter only) |
+| GET | `/api/v1/adoptions/listings/my` | List the current shelter's adoption listings (shelter only) |
+| PUT | `/api/v1/adoptions/listings/{id}` | Update an active or paused adoption listing (shelter only) |
+| POST | `/api/v1/adoptions/listings/{id}/pause` | Pause an active adoption listing (shelter only) |
+| POST | `/api/v1/adoptions/listings/{id}/resume` | Resume a paused adoption listing (shelter only) |
+| POST | `/api/v1/adoptions/listings/{id}/withdraw` | Withdraw a listing and close open applications (shelter only) |
+| POST | `/api/v1/adoptions/listings/{id}/applications` | Submit an adoption application (authenticated users) |
+| GET | `/api/v1/adoptions/listings/{id}/applications` | List applications for a shelter's listing (shelter only) |
+| GET | `/api/v1/adoptions/applications/my` | List the current user's adoption applications |
+| GET | `/api/v1/adoptions/applications/{id}` | Get one application (applicant, shelter or admin) |
+| POST | `/api/v1/adoptions/applications/{id}/approve` | Approve a pending application (shelter only) |
+| POST | `/api/v1/adoptions/applications/{id}/reject` | Reject a pending or approved application (shelter only) |
+| POST | `/api/v1/adoptions/applications/{id}/complete` | Complete an approved adoption and transfer pet ownership (shelter only) |
+| POST | `/api/v1/adoptions/applications/{id}/withdraw` | Withdraw the current user's application |
 | GET | `/api/v1/operator/dashboard` | Ownership-transfer counts by status (veterinarian or admin) |
 | GET | `/api/v1/operator/transfers` | Operator queue of ownership transfers, filterable by status and search (veterinarian or admin) |
 | GET | `/api/v1/operator/transfers/{id}` | Ownership-transfer details (veterinarian or admin) |
@@ -434,6 +467,66 @@ Completing a listing:
 
 `POST /api/v1/marketplace/listings/{id}/complete` is available to the seller or an admin. It marks the listing `Completed` and creates a local `OwnershipTransfer` with `Status = PendingAirsSync`. For a linked pet it records the pet id and microchip; for a standalone newborn listing the transfer still records the seller, buyer, type and price. The actual AIRS ownership change is performed later by an operator or clinic, so the local pet owner is **not** changed automatically by this endpoint.
 
+### Shelters and adoption
+
+Shelters are users with the `Shelter` role. A shelter first creates its organisation profile with `PUT /api/v1/shelters/me`:
+
+```json
+{
+  "organizationName": "Happy Tails Shelter",
+  "registrationNumber": "405123456",
+  "description": "Small shelter in Tbilisi.",
+  "city": "Tbilisi",
+  "address": "Rustaveli 1",
+  "phoneNumber": "+995555000000",
+  "email": "shelter@example.com",
+  "website": "https://example.com",
+  "isAcceptingApplications": true
+}
+```
+
+New profiles are unverified. An admin verifies a profile with `POST /api/v1/shelters/{id}/verify`; only verified shelters appear in the public catalogue and may publish adoption listings. If a shelter account does not exist yet, an admin promotes an existing user with `POST /api/v1/shelters/admin/users/{userId}/grant-shelter`; the user must log in again to receive the new role in the JWT. Changing the organisation name or registration number resets verification, because the legal identity changed. `isAcceptingApplications=false` keeps the profile and listings visible but blocks new applications.
+
+Adoption listings always reference one of the shelter's registered pets, so pet details and photos stay in sync with the pet profile:
+
+```json
+{
+  "petId": 42,
+  "description": "Calm and friendly; looking for a family with a garden.",
+  "city": "Tbilisi",
+  "adoptionFee": 0,
+  "isUrgent": false
+}
+```
+
+Business rules:
+
+- The pet must belong to the authenticated shelter, must be alive and may have only one `Active` or `Paused` adoption listing at a time.
+- Listing statuses are `Active`, `Paused`, `Adopted` and `Withdrawn`. Public search returns only `Active` listings from verified shelters; public detail also returns `Adopted` listings as a record.
+- `GET /api/v1/adoptions/listings` supports `page`, `pageSize`, `species`, `city`, `search` (pet name/breed/description/shelter) and `shelterId`.
+- Applications are accepted only while the listing is `Active`, the shelter is verified and `isAcceptingApplications` is `true`. A user has at most one application per listing and cannot apply to their own shelter's listing.
+- Application statuses are `Pending`, `Approved`, `Rejected`, `Withdrawn` and `Completed`.
+
+Application payload:
+
+```json
+{
+  "fullName": "Nino Beridze",
+  "email": "nino@example.com",
+  "phone": "+995555111111",
+  "address": "Tbilisi, Vake",
+  "message": "We have a fenced garden and previous dog experience."
+}
+```
+
+The shelter reviews applications with `approve`, `reject` and `complete` actions. Completing an approved application marks the application `Completed`, the listing `Adopted`, rejects other open applications and changes the linked pet's local owner to the applicant. As with the marketplace, the corresponding ownership change must still be completed in AIRS by an operator or clinic.
+
+Dashboards:
+
+- `GET /api/v1/shelters/me/dashboard` returns the shelter profile (or `null` before it is created) plus listing and application counts.
+- `GET /api/v1/shelters/admin/list?verified=false` lets admins review shelter profiles before verifying them.
+- `GET /api/v1/shelters/admin/dashboard` returns total/verified/unverified shelters, active listings, pending applications and completed adoptions for admins.
+
 ### Clinic / operator workflow
 
 Operators are users with the `Veterinarian` or `Admin` role. They process ownership transfers after the marketplace completion:
@@ -569,7 +662,7 @@ Configuration:
 dotnet test
 ```
 
-The xUnit suite covers AIRS validation, pet creation/update rules, lost/found flows, public-profile tokens and privacy projection, QR PNG generation, vaccination records, vaccination reminder stages and retries, marketplace listing rules, ownership transfers and operator processing, geo distance, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
+The xUnit suite covers AIRS validation, pet creation/update rules, lost/found flows, public-profile tokens and privacy projection, QR PNG generation, vaccination records, vaccination reminder stages and retries, marketplace listing rules, ownership transfers and operator processing, shelter verification, adoption listing/application status transitions, geo distance, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
 
 ## AIRS mock and microchip validation
 
