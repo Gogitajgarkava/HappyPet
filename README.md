@@ -182,6 +182,8 @@ docker compose -f airs-mock/docker-compose.yml down -v   # also removes mocked A
 
 All endpoints are under `/api/v1`. Registration, login, email verification, password recovery, the public lost-pet search, public marketplace listings, public pet profiles and the public shelter/adoption catalogue are public; every other endpoint requires `Authorization: Bearer <token>`.
 
+The API exposes **85 endpoints** across 10 controllers, plus 3 health-check endpoints (`/health`, `/health/live`, `/health/ready`).
+
 Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api/v1/pet/1`, `/api/v1/pet/1/photos/2`.
 
 | Method | Endpoint | Description |
@@ -662,7 +664,7 @@ Configuration:
 dotnet test
 ```
 
-The xUnit suite covers AIRS validation, pet creation/update rules, lost/found flows, public-profile tokens and privacy projection, QR PNG generation, vaccination records, vaccination reminder stages and retries, marketplace listing rules, ownership transfers and operator processing, shelter verification, adoption listing/application status transitions, geo distance, pagination, login and refresh-token handling, OTP flows and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
+The xUnit suite (**162 tests**) covers AIRS validation, pet creation/update rules, lost/found flows, public-profile tokens and privacy projection, QR PNG generation, vaccination records, vaccination reminder stages and retries, marketplace listing rules, ownership transfers and operator processing, shelter verification, adoption listing/application status transitions, geo distance, pagination, login and refresh-token handling, OTP flows and cleanup, and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
 
 ## AIRS mock and microchip validation
 
@@ -705,6 +707,7 @@ Registration creates the account with `isEmailVerified: false` and sends a 6-dig
 | Maximum verification attempts | 5 |
 | Resend cooldown | 60 seconds |
 | Maximum sends per purpose | 3 per 15 minutes |
+| Cleanup | Expired and consumed codes are deleted after 24 hours |
 
 - Only an HMAC-SHA256 hash of the OTP is stored. OTP values are never returned by the API or written to logs.
 - Requesting a new OTP invalidates the previous active OTP for the same purpose.
@@ -714,6 +717,7 @@ Registration creates the account with `isEmailVerified: false` and sends a 6-dig
 - `resend-verification` and `forgot-password` always return a generic success response so they do not reveal whether an account exists.
 - An unverified login returns `403` with `{ "code": "EMAIL_NOT_VERIFIED", "message": "..." }`.
 - Existing accounts are marked as email-verified by the `AddEmailVerificationOtp` migration so they are not locked out.
+- A background service runs shortly after startup and then daily, deleting OTP codes that expired or were consumed more than 24 hours ago.
 
 Configuration:
 
@@ -778,6 +782,7 @@ Configuration (`Aws:S3`):
 - The bucket must already exist. The API does not create it.
 - Recommended production setup: private bucket + CloudFront with OAC through `PublicBaseUrl`.
 - If CloudFront is unavailable, set `UsePresignedUrls=true` to serve temporary signed S3 URLs while keeping the bucket private. Photo links expire after `PresignedUrlMinutes`.
+- The current deployment uses `UsePresignedUrls=true` with `PresignedUrlMinutes=1440` (24 hours), so no CloudFront distribution is required.
 - If both `PublicBaseUrl` and `UsePresignedUrls` are unset, the API falls back to the public S3 URL, which only works when the bucket policy allows public reads.
 - Allowed files: JPEG, PNG, WebP; maximum 5 MB; maximum 10 photos per pet.
 - Never commit real AWS keys. `appsettings.json` is git-ignored.
