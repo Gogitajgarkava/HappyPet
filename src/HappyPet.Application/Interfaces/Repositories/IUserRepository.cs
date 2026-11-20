@@ -23,5 +23,6 @@ namespace HappyPet.Application.Interfaces.Repositories
         Task<List<UserOtpCode>> GetActiveOtpCodesAsync(int userId, OtpPurpose purpose, CancellationToken cancellationToken = default);
         Task<int> CountOtpCodesSinceAsync(int userId, OtpPurpose purpose, DateTime sinceUtc, CancellationToken cancellationToken = default);
         void UpdateOtpCode(UserOtpCode code);
+        Task<int> DeleteExpiredOtpCodesAsync(DateTime cutoffUtc, CancellationToken cancellationToken = default);
     }
 }

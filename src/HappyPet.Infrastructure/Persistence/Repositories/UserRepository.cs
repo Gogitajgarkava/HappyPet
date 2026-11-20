@@ -111,5 +111,12 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
         {
             _context.UserOtpCodes.Update(code);
         }
+
+        public async Task<int> DeleteExpiredOtpCodesAsync(DateTime cutoffUtc, CancellationToken cancellationToken = default)
+        {
+            return await _context.UserOtpCodes
+                .Where(c => c.ExpiresAt <= cutoffUtc || (c.ConsumedAt != null && c.ConsumedAt <= cutoffUtc))
+                .ExecuteDeleteAsync(cancellationToken);
+        }
     }
 }

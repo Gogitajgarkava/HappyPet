@@ -304,6 +304,7 @@ builder.Services.AddScoped<IRefreshTokenHasher, RefreshTokenHasher>();
 builder.Services.AddScoped<ICodeGenerator, CodeGenerator>();
 builder.Services.AddScoped<IEmailSender, EmailSender>();
 builder.Services.AddHostedService<RefreshTokenCleanupService>();
+builder.Services.AddHostedService<OtpCleanupService>();
 builder.Services.AddHostedService<MarketplaceExpiryService>();
 builder.Services.AddHostedService<VaccinationReminderBackgroundService>();
 

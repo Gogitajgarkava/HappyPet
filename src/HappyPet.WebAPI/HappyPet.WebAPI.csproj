@@ -20,4 +20,8 @@
     <ProjectReference Include="..\HappyPet.Infrastructure\HappyPet.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="HappyPet.Tests" />
+  </ItemGroup>
+
 </Project>
