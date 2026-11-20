@@ -769,12 +769,16 @@ Configuration (`Aws:S3`):
 | `BucketName` | yes | Existing S3 bucket for pet photos |
 | `Region` | yes | AWS region, e.g. `eu-central-1` |
 | `PublicBaseUrl` | recommended | CloudFront or custom domain used to build public photo URLs |
+| `UsePresignedUrls` | no | When `true`, returns short-lived presigned S3 URLs and keeps the bucket private; takes precedence over `PublicBaseUrl`. Default `false` |
+| `PresignedUrlMinutes` | no | Lifetime of presigned photo URLs in minutes. Default `60` |
 | `ServiceUrl` | no | S3-compatible endpoint for local development (MinIO, LocalStack, S3Mock) |
 | `AccessKeyId` / `SecretAccessKey` | no | Local development only; production should use the default AWS credential chain |
 
 - Credentials are resolved through the standard AWS chain (environment variables, profile, IAM role) unless explicit local keys are configured.
 - The bucket must already exist. The API does not create it.
-- Recommended production setup: private bucket + CloudFront with OAC. If `PublicBaseUrl` is empty, the API falls back to the public S3 URL, which only works when the bucket policy allows public reads.
+- Recommended production setup: private bucket + CloudFront with OAC through `PublicBaseUrl`.
+- If CloudFront is unavailable, set `UsePresignedUrls=true` to serve temporary signed S3 URLs while keeping the bucket private. Photo links expire after `PresignedUrlMinutes`.
+- If both `PublicBaseUrl` and `UsePresignedUrls` are unset, the API falls back to the public S3 URL, which only works when the bucket policy allows public reads.
 - Allowed files: JPEG, PNG, WebP; maximum 5 MB; maximum 10 photos per pet.
 - Never commit real AWS keys. `appsettings.json` is git-ignored.
 

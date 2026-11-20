@@ -12,6 +12,9 @@ namespace HappyPet.Infrastructure.Storage
         private readonly string _bucketName;
         private readonly string _region;
         private readonly string? _publicBaseUrl;
+        private readonly bool _usePresignedUrls;
+        private readonly int _presignedUrlMinutes;
+        private readonly bool _useHttp;
         private readonly Lazy<AmazonS3Client> _client;
 
         public S3FileStorageService(IConfiguration configuration)
@@ -20,6 +23,12 @@ namespace HappyPet.Infrastructure.Storage
             _bucketName = configuration["Aws:S3:BucketName"] ?? string.Empty;
             _region = configuration["Aws:S3:Region"] ?? "eu-central-1";
             _publicBaseUrl = configuration["Aws:S3:PublicBaseUrl"];
+            _usePresignedUrls = bool.TryParse(configuration["Aws:S3:UsePresignedUrls"], out var usePresigned) && usePresigned;
+            _presignedUrlMinutes = int.TryParse(configuration["Aws:S3:PresignedUrlMinutes"], out var minutes)
+                ? Math.Clamp(minutes, 1, 10080)
+                : 60;
+            _useHttp = (configuration["Aws:S3:ServiceUrl"] ?? string.Empty)
+                .StartsWith("http://", StringComparison.OrdinalIgnoreCase);
             _client = new Lazy<AmazonS3Client>(CreateClient);
         }
 
@@ -65,6 +74,20 @@ namespace HappyPet.Infrastructure.Storage
 
         public string GetUrl(string key)
         {
+            if (_usePresignedUrls)
+            {
+                EnsureConfigured();
+
+                return Client.GetPreSignedURL(new GetPreSignedUrlRequest
+                {
+                    BucketName = _bucketName,
+                    Key = key,
+                    Verb = HttpVerb.GET,
+                    Expires = DateTime.UtcNow.AddMinutes(_presignedUrlMinutes),
+                    Protocol = _useHttp ? Protocol.HTTP : Protocol.HTTPS
+                });
+            }
+
             if (!string.IsNullOrWhiteSpace(_publicBaseUrl))
             {
                 return $"{_publicBaseUrl.TrimEnd('/')}/{key}";
