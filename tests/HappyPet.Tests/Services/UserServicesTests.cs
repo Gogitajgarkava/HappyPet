@@ -247,6 +247,31 @@ public class UserServicesTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task GetPagedAsync_ClampsPageSizeAndMapsUsers()
+    {
+        _userRepository
+            .Setup(r => r.GetPagedAsync(
+                null,
+                UserRole.Admin,
+                100,
+                100,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((new List<User> { BuildUser() }, 1));
+
+        var result = await CreateService().GetPagedAsync(
+            search: null,
+            role: UserRole.Admin,
+            page: 2,
+            pageSize: 500);
+
+        Assert.Equal(2, result.Page);
+        Assert.Equal(100, result.PageSize);
+        Assert.Equal(1, result.TotalCount);
+        Assert.Single(result.Items);
+        Assert.Equal("owner@example.com", result.Items[0].Email);
+    }
+
     private static CreateUserRequest BuildCreateUserRequest()
     {
         return new CreateUserRequest

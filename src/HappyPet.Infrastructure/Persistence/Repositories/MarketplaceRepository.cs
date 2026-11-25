@@ -114,6 +114,43 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
             return (items, totalCount);
         }
 
+        public async Task<(List<MarketplaceListing> Items, int TotalCount)> GetAdminPagedAsync(
+            ListingStatus? status,
+            string? search,
+            int skip,
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            var query = _context.MarketplaceListings.AsNoTracking().AsQueryable();
+
+            if (status.HasValue)
+            {
+                query = query.Where(l => l.Status == status.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = $"%{search.Trim()}%";
+                query = query.Where(l =>
+                    EF.Functions.ILike(l.PetName, term)
+                    || (l.Breed != null && EF.Functions.ILike(l.Breed, term))
+                    || (l.Description != null && EF.Functions.ILike(l.Description, term))
+                    || EF.Functions.ILike(l.City, term)
+                    || EF.Functions.ILike(l.ContactPhone, term));
+            }
+
+            var totalCount = await query.CountAsync(cancellationToken);
+            var items = await query
+                .Include(l => l.Photos)
+                .OrderByDescending(l => l.CreatedAt)
+                .ThenByDescending(l => l.Id)
+                .Skip(skip)
+                .Take(take)
+                .ToListAsync(cancellationToken);
+
+            return (items, totalCount);
+        }
+
         public async Task<bool> HasActiveListingForPetAsync(
             int petId,
             int? excludeListingId = null,

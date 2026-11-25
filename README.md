@@ -60,9 +60,11 @@ src/
     Controllers/OperatorController.cs
     Controllers/ReminderController.cs
     Controllers/AirsController.cs
+    Controllers/AdminController.cs
     ErrorHandling/ApiExceptionHandler.cs
     Filters/FluentValidationActionFilter.cs
     HealthChecks/AirsHealthCheck.cs
+    Services/AdminBootstrapService.cs
     Program.cs
 tests/
   HappyPet.Tests/            # xUnit unit tests (services, AIRS, error handling)
@@ -182,7 +184,7 @@ docker compose -f airs-mock/docker-compose.yml down -v   # also removes mocked A
 
 All endpoints are under `/api/v1`. Registration, login, email verification, password recovery, the public lost-pet search, public marketplace listings, public pet profiles and the public shelter/adoption catalogue are public; every other endpoint requires `Authorization: Bearer <token>`.
 
-The API exposes **85 endpoints** across 10 controllers, plus 3 health-check endpoints (`/health`, `/health/live`, `/health/ready`).
+The API exposes **87 endpoints** across 11 controllers, plus 3 health-check endpoints (`/health`, `/health/live`, `/health/ready`).
 
 Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api/v1/pet/1`, `/api/v1/pet/1/photos/2`.
 
@@ -201,6 +203,8 @@ Entity identifiers are integers (`int`, PostgreSQL identity). For example: `/api
 | GET | `/api/v1/user/{email}` | Get user by email (owner or admin) |
 | PUT | `/api/v1/user/{id}` | Update profile (owner or admin) |
 | DELETE | `/api/v1/user/{id}` | Delete user (owner or admin) |
+| GET | `/api/v1/admin/users` | List/search all users with role filter (admin only, paginated) |
+| GET | `/api/v1/admin/marketplace/listings` | List marketplace listings of every status with search/status filter (admin only, paginated) |
 | POST | `/api/v1/pet/add-pet` | Add a pet for the current user |
 | GET | `/api/v1/pet/{id}` | Get pet (owner or admin) |
 | GET | `/api/v1/pet/owner/{ownerId}` | List pets by owner (paginated) |
@@ -733,6 +737,30 @@ Configuration:
 - Use different random values for `Jwt:Secret`, `Jwt:RefreshTokenHashKey` and `Otp:HashKey`.
 - Never commit real SMTP, JWT or OTP secrets. `appsettings.json` and `appsettings.Development.json` are git-ignored.
 
+## Admin bootstrap
+
+The first administrator can be created automatically on startup. The `AdminBootstrapService` runs once per application start and is idempotent:
+
+- if a user with `AdminBootstrap:Email` exists, it is promoted to `Admin` and marked as email-verified;
+- if the user does not exist, a new verified `Admin` account is created with the configured password and profile data;
+- `AdminBootstrap:ForcePasswordReset=true` resets the configured user's password once; use it only for a one-off recovery and turn it off afterwards.
+
+Configuration (development example):
+
+```json
+"AdminBootstrap": {
+  "Enabled": true,
+  "Email": "admin@example.com",
+  "Password": "change-me",
+  "PersonalId": "99999999999",
+  "FirstName": "HappyPet",
+  "LastName": "Admin",
+  "PhoneNumber": "+995555000000"
+}
+```
+
+Do not keep the bootstrap password in production configuration. After the first login, change the password and disable or remove the `AdminBootstrap` section, or set `Enabled` to `false`.
+
 ## JWT and sessions
 
 Access tokens are short-lived JWTs. Refresh tokens are opaque random values stored as HMAC-SHA256 hashes in the `RefreshTokens` table and delivered only in an `HttpOnly` cookie.
@@ -741,7 +769,7 @@ Access tokens are short-lived JWTs. Refresh tokens are opaque random values stor
 | --- | --- |
 | Access token lifetime | 15 minutes |
 | Refresh token lifetime | 30 days |
-| Refresh token cookie | `happypet_refresh`, `HttpOnly`, `Secure`, `SameSite=Lax`, path `/api/v1/auth` |
+| Refresh token cookie | `happypet_refresh`, `HttpOnly`, `Secure`, `SameSite=Lax` in production and `SameSite=None` in Development (the Vite server runs on `http://localhost:5173`, the API on `https://localhost:7149`), path `/api/v1/auth` |
 | Rotation | Every refresh revokes the old token and issues a new one |
 | Reuse detection | Reusing an old token outside the 10-second race window revokes the token family |
 | Password reset | Revokes all active refresh tokens for the user |

@@ -137,6 +137,24 @@ namespace HappyPet.Application.Services
             return ToPagedResult(items, validPage, validPageSize, totalCount);
         }
 
+        public async Task<PagedResult<MarketplaceListingResponse>> GetAdminAsync(
+            ListingStatus? status,
+            string? search,
+            int page = 1,
+            int pageSize = 20,
+            CancellationToken cancellationToken = default)
+        {
+            var (validPage, validPageSize) = NormalizePagination(page, pageSize);
+            var (items, totalCount) = await _marketplaceRepository.GetAdminPagedAsync(
+                status,
+                search,
+                (validPage - 1) * validPageSize,
+                validPageSize,
+                cancellationToken);
+
+            return ToPagedResult(items, validPage, validPageSize, totalCount);
+        }
+
         public async Task<MarketplaceListingResponse> UpdateAsync(
             int id,
             UpdateMarketplaceListingRequest request,

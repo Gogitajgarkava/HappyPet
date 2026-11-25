@@ -257,6 +257,32 @@ public class MarketplaceServiceTests
             () => CreateService().UpdateAsync(listing.Id, request));
     }
 
+    [Fact]
+    public async Task GetAdminAsync_PassesFiltersAndReturnsPagedResult()
+    {
+        var listing = BuildListing();
+        listing.Status = ListingStatus.Blocked;
+        _marketplaceRepository
+            .Setup(r => r.GetAdminPagedAsync(
+                ListingStatus.Blocked,
+                "coco",
+                0,
+                20,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((new List<MarketplaceListing> { listing }, 1));
+
+        var result = await CreateService().GetAdminAsync(
+            ListingStatus.Blocked,
+            "coco",
+            page: 1,
+            pageSize: 20);
+
+        Assert.Equal(1, result.TotalCount);
+        Assert.Single(result.Items);
+        Assert.Equal(ListingStatus.Blocked, result.Items[0].Status);
+        Assert.Equal("შერი", result.Items[0].PetName);
+    }
+
     private static CreateMarketplaceListingRequest BuildCreateRequest()
     {
         return new CreateMarketplaceListingRequest

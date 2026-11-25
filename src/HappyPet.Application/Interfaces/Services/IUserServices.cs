@@ -1,5 +1,6 @@
 ﻿using HappyPet.Application.Dtos.Requests;
 using HappyPet.Application.Dtos.Responses;
+using HappyPet.Domain.Enums;
 
 namespace HappyPet.Application.Interfaces.Services
 {
@@ -8,6 +9,12 @@ namespace HappyPet.Application.Interfaces.Services
         Task<UserResponse> RegisterAsync(CreateUserRequest request, CancellationToken cancellationToken = default);
         Task<UserResponse?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
         Task<UserResponse?> GetByEmailAsync(string email, CancellationToken cancellationToken = default);
+        Task<PagedResult<UserResponse>> GetPagedAsync(
+            string? search,
+            UserRole? role,
+            int page = 1,
+            int pageSize = 20,
+            CancellationToken cancellationToken = default);
         Task<UserResponse> UpdateAsync(int id, UpdateUserRequest request, CancellationToken cancellationToken = default);
         Task DeleteAsync(int id, CancellationToken cancellationToken = default);
 

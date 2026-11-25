@@ -11,6 +11,13 @@ namespace HappyPet.Application.Interfaces.Repositories
 
         Task<User?> GetWithPetsAsync(int id, CancellationToken cancellationToken = default);
 
+        Task<(List<User> Items, int TotalCount)> GetPagedAsync(
+            string? search,
+            UserRole? role,
+            int skip,
+            int take,
+            CancellationToken cancellationToken = default);
+
         Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken = default);
         Task<bool> ExistsByPersonalIdAsync(string personalId, CancellationToken cancellationToken = default);
 

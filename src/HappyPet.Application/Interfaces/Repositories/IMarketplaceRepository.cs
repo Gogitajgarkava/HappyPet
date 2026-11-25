@@ -38,6 +38,12 @@ namespace HappyPet.Application.Interfaces.Repositories
             int skip,
             int take,
             CancellationToken cancellationToken = default);
+        Task<(List<MarketplaceListing> Items, int TotalCount)> GetAdminPagedAsync(
+            ListingStatus? status,
+            string? search,
+            int skip,
+            int take,
+            CancellationToken cancellationToken = default);
 
         Task<bool> HasActiveListingForPetAsync(
             int petId,

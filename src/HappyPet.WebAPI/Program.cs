@@ -307,6 +307,7 @@ builder.Services.AddHostedService<RefreshTokenCleanupService>();
 builder.Services.AddHostedService<OtpCleanupService>();
 builder.Services.AddHostedService<MarketplaceExpiryService>();
 builder.Services.AddHostedService<VaccinationReminderBackgroundService>();
+builder.Services.AddHostedService<AdminBootstrapService>();
 
 
 var app = builder.Build();

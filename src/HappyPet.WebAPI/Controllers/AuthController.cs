@@ -18,12 +18,25 @@ namespace HappyPet.WebAPI.Controllers
 
         private readonly IAuthService _authService;
         private readonly IUserServices _userService;
+        private readonly IWebHostEnvironment _environment;
 
-        public AuthController(IAuthService authService, IUserServices userService)
+        public AuthController(
+            IAuthService authService,
+            IUserServices userService,
+            IWebHostEnvironment environment)
         {
             _authService = authService;
             _userService = userService;
+            _environment = environment;
         }
+
+        /// <summary>
+        /// The Vite dev server runs on http://localhost:5173 while the API runs on
+        /// https://localhost:7149. That is a cross-site request, so a Lax cookie is
+        /// never sent. Development therefore uses SameSite=None; production keeps Lax.
+        /// </summary>
+        private SameSiteMode RefreshCookieSameSite =>
+            _environment.IsDevelopment() ? SameSiteMode.None : SameSiteMode.Lax;
 
         [HttpPost("login")]
         [EnableRateLimiting("auth-login")]
@@ -137,7 +150,7 @@ namespace HappyPet.WebAPI.Controllers
             {
                 HttpOnly = true,
                 Secure = true,
-                SameSite = SameSiteMode.Lax,
+                SameSite = RefreshCookieSameSite,
                 Path = RefreshTokenCookiePath,
                 Expires = new DateTimeOffset(expiresAt.ToUniversalTime()),
                 IsEssential = true
@@ -150,7 +163,7 @@ namespace HappyPet.WebAPI.Controllers
             {
                 HttpOnly = true,
                 Secure = true,
-                SameSite = SameSiteMode.Lax,
+                SameSite = RefreshCookieSameSite,
                 Path = RefreshTokenCookiePath,
                 Expires = DateTimeOffset.UnixEpoch,
                 IsEssential = true

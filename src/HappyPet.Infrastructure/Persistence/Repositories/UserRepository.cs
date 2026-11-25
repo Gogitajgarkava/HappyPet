@@ -55,6 +55,42 @@ namespace HappyPet.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
         }
 
+        public async Task<(List<User> Items, int TotalCount)> GetPagedAsync(
+            string? search,
+            UserRole? role,
+            int skip,
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            var query = _context.Users.AsNoTracking().AsQueryable();
+
+            if (role.HasValue)
+            {
+                query = query.Where(u => u.Role == role.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = $"%{search.Trim()}%";
+                query = query.Where(u =>
+                    EF.Functions.ILike(u.FirstName, term)
+                    || EF.Functions.ILike(u.LastName, term)
+                    || EF.Functions.ILike(u.Email, term)
+                    || EF.Functions.ILike(u.PersonalId, term)
+                    || EF.Functions.ILike(u.PhoneNumber, term));
+            }
+
+            var totalCount = await query.CountAsync(cancellationToken);
+            var items = await query
+                .OrderByDescending(u => u.CreatedAt)
+                .ThenByDescending(u => u.Id)
+                .Skip(skip)
+                .Take(take)
+                .ToListAsync(cancellationToken);
+
+            return (items, totalCount);
+        }
+
         public async Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken = default)
         {
             var normalized = email.Trim().ToLowerInvariant();

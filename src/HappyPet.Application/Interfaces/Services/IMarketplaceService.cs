@@ -1,6 +1,7 @@
 using HappyPet.Application.Dtos.Requests;
 using HappyPet.Application.Dtos.Responses;
 using HappyPet.Application.Interfaces.Repositories;
+using HappyPet.Domain.Enums;
 
 namespace HappyPet.Application.Interfaces.Services
 {
@@ -21,6 +22,13 @@ namespace HappyPet.Application.Interfaces.Services
 
         Task<PagedResult<MarketplaceListingResponse>> GetBySellerAsync(
             int sellerId,
+            int page = 1,
+            int pageSize = 20,
+            CancellationToken cancellationToken = default);
+
+        Task<PagedResult<MarketplaceListingResponse>> GetAdminAsync(
+            ListingStatus? status,
+            string? search,
             int page = 1,
             int pageSize = 20,
             CancellationToken cancellationToken = default);

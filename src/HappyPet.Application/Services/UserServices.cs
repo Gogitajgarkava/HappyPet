@@ -119,6 +119,32 @@ namespace HappyPet.Application.Services
             return user == null ? null : MapToResponse(user);
         }
 
+        public async Task<PagedResult<UserResponse>> GetPagedAsync(
+            string? search,
+            UserRole? role,
+            int page = 1,
+            int pageSize = 20,
+            CancellationToken cancellationToken = default)
+        {
+            const int maxPageSize = 100;
+            var validPage = page < 1 ? 1 : page;
+            var validPageSize = pageSize < 1 ? 20 : Math.Min(pageSize, maxPageSize);
+            var (items, totalCount) = await _userRepository.GetPagedAsync(
+                search,
+                role,
+                (validPage - 1) * validPageSize,
+                validPageSize,
+                cancellationToken);
+
+            return new PagedResult<UserResponse>
+            {
+                Items = items.Select(MapToResponse).ToList(),
+                Page = validPage,
+                PageSize = validPageSize,
+                TotalCount = totalCount
+            };
+        }
+
         public async Task<UserResponse> UpdateAsync(int id, UpdateUserRequest request, CancellationToken cancellationToken)
         {
             var user = await _userRepository.GetByIdAsync(id, cancellationToken);
