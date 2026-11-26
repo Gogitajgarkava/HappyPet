@@ -367,7 +367,13 @@ The first enable generates a cryptographically random public token. Re-enabling 
 - `GET /api/v1/pet/{id}/public-profile` returns `isEnabled`, `token`, `publicProfilePath` and an absolute `publicProfileUrl`.
 - `GET /api/v1/pet/{id}/qr` returns `image/png` containing the public-profile URL.
 - `GET /api/v1/public/pets/{token}` is anonymous and rate-limited. It returns only safe fields: name, species, breed, gender, birth date, color, marks, size, sterilization status, lost/deceased status, last-seen address, photos and a vaccination summary. Owner data, microchip number, exact coordinates and death cause are never exposed. `contactPhone` is included only while the pet is marked as lost.
-- The QR currently targets the API public-profile URL. A future frontend can render a richer public page behind the same token or point the QR to its own route.
+- The QR code and `publicProfileUrl` target the web app when `PublicProfile:WebBaseUrl` is configured — for example `http://localhost:5173` locally or `https://happypet.ge` in production, producing `{WebBaseUrl}/p/{token}`. When the key is empty, the URL falls back to the API public-profile endpoint.
+
+```json
+"PublicProfile": {
+  "WebBaseUrl": "http://localhost:5173"
+}
+```
 
 ### Vaccinations
 
@@ -668,7 +674,7 @@ Configuration:
 dotnet test
 ```
 
-The xUnit suite (**162 tests**) covers AIRS validation, pet creation/update rules, lost/found flows, public-profile tokens and privacy projection, QR PNG generation, vaccination records, vaccination reminder stages and retries, marketplace listing rules, ownership transfers and operator processing, shelter verification, adoption listing/application status transitions, geo distance, pagination, login and refresh-token handling, OTP flows and cleanup, and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
+The xUnit suite (**164 tests**) covers AIRS validation, pet creation/update rules, lost/found flows, public-profile tokens and privacy projection, QR PNG generation, vaccination records, vaccination reminder stages and retries, marketplace listing rules, ownership transfers and operator processing, shelter verification, adoption listing/application status transitions, geo distance, pagination, login and refresh-token handling, OTP flows and cleanup, and the unified error handler. GitHub Actions runs build, tests and both Docker image builds on every push and pull request.
 
 ## AIRS mock and microchip validation
 

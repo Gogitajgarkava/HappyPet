@@ -19,17 +19,20 @@ namespace HappyPet.WebAPI.Controllers
         private readonly IVaccinationService _vaccinationService;
         private readonly IReminderService _reminderService;
         private readonly IQrCodeGenerator _qrCodeGenerator;
+        private readonly IConfiguration _configuration;
 
         public PetController(
             IPetService petService,
             IVaccinationService vaccinationService,
             IReminderService reminderService,
-            IQrCodeGenerator qrCodeGenerator)
+            IQrCodeGenerator qrCodeGenerator,
+            IConfiguration configuration)
         {
             _petService = petService;
             _vaccinationService = vaccinationService;
             _reminderService = reminderService;
             _qrCodeGenerator = qrCodeGenerator;
+            _configuration = configuration;
         }
 
         [HttpPost("add-pet")]
@@ -517,9 +520,18 @@ namespace HappyPet.WebAPI.Controllers
 
         private string? BuildPublicProfileUrl(string? token)
         {
-            return string.IsNullOrWhiteSpace(token)
-                ? null
-                : $"{Request.Scheme}://{Request.Host}/api/v1/public/pets/{token}";
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return null;
+            }
+
+            var webBaseUrl = _configuration["PublicProfile:WebBaseUrl"];
+            if (!string.IsNullOrWhiteSpace(webBaseUrl))
+            {
+                return $"{webBaseUrl.TrimEnd('/')}/p/{token}";
+            }
+
+            return $"{Request.Scheme}://{Request.Host}/api/v1/public/pets/{token}";
         }
 
         private NotFoundObjectResult NotFoundError(string message)
